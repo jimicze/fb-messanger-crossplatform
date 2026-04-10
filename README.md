@@ -9,8 +9,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/AdrianLasworkin/fb-messanger-crossplatform/releases"><img src="https://img.shields.io/github/v/release/AdrianLasworkin/fb-messanger-crossplatform?style=flat-square&color=blue&label=Release" alt="Latest Release" /></a>
-  <a href="https://github.com/AdrianLasworkin/fb-messanger-crossplatform/actions/workflows/release.yml"><img src="https://img.shields.io/github/actions/workflow/status/AdrianLasworkin/fb-messanger-crossplatform/release.yml?style=flat-square&label=CI" alt="CI Status" /></a>
+  <a href="https://github.com/jimicze/fb-messanger-crossplatform/releases"><img src="https://img.shields.io/github/v/release/jimicze/fb-messanger-crossplatform?style=flat-square&color=blue&label=Release" alt="Latest Release" /></a>
+  <a href="https://github.com/jimicze/fb-messanger-crossplatform/actions/workflows/release.yml"><img src="https://img.shields.io/github/actions/workflow/status/jimicze/fb-messanger-crossplatform/release.yml?style=flat-square&label=CI" alt="CI Status" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="MIT License" /></a>
   <img src="https://img.shields.io/badge/Tauri-v2-orange?style=flat-square&logo=tauri" alt="Tauri v2" />
   <img src="https://img.shields.io/badge/Rust-2021-brown?style=flat-square&logo=rust" alt="Rust" />
@@ -44,7 +44,7 @@ Pick the right installer for your platform:
     <td>🍎 <strong>macOS</strong></td>
     <td>Apple Silicon (M1+)</td>
     <td><code>.dmg</code></td>
-    <td rowspan="2"><a href="https://github.com/AdrianLasworkin/fb-messanger-crossplatform/releases/latest"><strong>Latest Release →</strong></a></td>
+    <td rowspan="2"><a href="https://github.com/jimicze/fb-messanger-crossplatform/releases/latest"><strong>Latest Release →</strong></a></td>
   </tr>
   <tr>
     <td>🍎 <strong>macOS</strong></td>
@@ -55,7 +55,7 @@ Pick the right installer for your platform:
     <td>🪟 <strong>Windows</strong></td>
     <td>x64</td>
     <td><code>.exe</code> / <code>.msi</code></td>
-    <td rowspan="2"><a href="https://github.com/AdrianLasworkin/fb-messanger-crossplatform/releases/latest"><strong>Latest Release →</strong></a></td>
+    <td rowspan="2"><a href="https://github.com/jimicze/fb-messanger-crossplatform/releases/latest"><strong>Latest Release →</strong></a></td>
   </tr>
   <tr>
     <td>🪟 <strong>Windows</strong></td>
@@ -66,7 +66,7 @@ Pick the right installer for your platform:
     <td>🐧 <strong>Linux</strong></td>
     <td>x64</td>
     <td><code>.deb</code> / <code>.rpm</code> / <code>.AppImage</code></td>
-    <td rowspan="2"><a href="https://github.com/AdrianLasworkin/fb-messanger-crossplatform/releases/latest"><strong>Latest Release →</strong></a></td>
+    <td rowspan="2"><a href="https://github.com/jimicze/fb-messanger-crossplatform/releases/latest"><strong>Latest Release →</strong></a></td>
   </tr>
   <tr>
     <td>🐧 <strong>Linux</strong></td>
@@ -195,7 +195,7 @@ sudo apt-get install -y \
 
 ```bash
 # Clone
-git clone https://github.com/AdrianLasworkin/fb-messanger-crossplatform.git
+git clone https://github.com/jimicze/fb-messanger-crossplatform.git
 cd fb-messanger-crossplatform
 
 # Install dependencies
