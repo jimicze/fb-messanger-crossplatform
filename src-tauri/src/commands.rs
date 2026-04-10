@@ -66,9 +66,10 @@ pub fn send_notification(
     title: String,
     body: String,
     tag: String,
+    silent: bool,
     app: AppHandle,
 ) -> Result<(), String> {
-    crate::services::notification::show_notification(&app, &title, &body, &tag)
+    crate::services::notification::show_notification(&app, &title, &body, &tag, silent)
 }
 
 /// Update the unread-message count badge / tray tooltip.
@@ -173,4 +174,43 @@ pub fn set_zoom(level: f64, app: AppHandle) -> Result<(), String> {
 pub fn get_zoom(app: AppHandle) -> Result<f64, String> {
     let settings = crate::services::auth::load_settings(&app).unwrap_or_default();
     Ok(settings.zoom_level)
+}
+
+/// Returns the UI translation strings for the detected system locale.
+///
+/// The frontend calls this at startup to localise all visible text.
+#[tauri::command]
+pub fn get_translations() -> Result<std::collections::HashMap<String, String>, String> {
+    let locale = crate::services::locale::detect_locale();
+    let t = crate::services::locale::get_translations(&locale);
+
+    let mut map = std::collections::HashMap::new();
+    map.insert("locale".to_string(), locale);
+    map.insert("tray_tooltip".to_string(), t.tray_tooltip);
+    map.insert("tray_tooltip_unread".to_string(), t.tray_tooltip_unread);
+    map.insert("loading_title".to_string(), t.loading_title);
+    map.insert("loading_text".to_string(), t.loading_text);
+    map.insert("loading_offline".to_string(), t.loading_offline);
+    map.insert("offline_banner".to_string(), t.offline_banner);
+    map.insert("settings_title".to_string(), t.settings_title);
+    map.insert("settings_account".to_string(), t.settings_account);
+    map.insert(
+        "settings_stay_logged_in".to_string(),
+        t.settings_stay_logged_in,
+    );
+    map.insert("settings_display".to_string(), t.settings_display);
+    map.insert("settings_zoom_level".to_string(), t.settings_zoom_level);
+    map.insert("settings_data".to_string(), t.settings_data);
+    map.insert("settings_logout".to_string(), t.settings_logout);
+    map.insert("settings_logout_hint".to_string(), t.settings_logout_hint);
+    map.insert(
+        "settings_logout_confirm".to_string(),
+        t.settings_logout_confirm,
+    );
+    map.insert("settings_about".to_string(), t.settings_about);
+    map.insert(
+        "settings_about_description".to_string(),
+        t.settings_about_description,
+    );
+    Ok(map)
 }

@@ -7,7 +7,7 @@
 mod commands;
 mod services;
 
-use tauri::{WebviewUrl, WebviewWindowBuilder};
+use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 
 // ---------------------------------------------------------------------------
 // JavaScript injection scripts
@@ -25,7 +25,8 @@ const NOTIFICATION_OVERRIDE_SCRIPT: &str = r#"
             window.__TAURI__.core.invoke('send_notification', {
                 title: title,
                 body: options?.body || '',
-                tag: options?.tag || ''
+                tag: options?.tag || '',
+                silent: options?.silent || false
             });
         } catch(e) { console.error('[MessengerX] Failed to send notification:', e); }
         return {
@@ -117,32 +118,34 @@ const OFFLINE_DIALOG_HIDER_SCRIPT: &str = r#"
 /// `window.__messenger_updateBanner(isOffline)` for Rust to call.
 ///
 /// Injected at document-start; banner is appended to `<body>` once the DOM
-/// is ready.
-const OFFLINE_BANNER_SCRIPT: &str = r#"
-(function() {
-    function injectBanner() {
+/// is ready.  The `banner_text` argument is the translated banner string.
+fn build_offline_banner_script(banner_text: &str) -> String {
+    format!(
+        r#"(function() {{
+    function injectBanner() {{
         if (document.getElementById('__messenger_offline_banner__')) return;
         var banner = document.createElement('div');
         banner.id = '__messenger_offline_banner__';
         banner.style.cssText = 'display:none;position:fixed;top:0;left:0;right:0;z-index:999999;background:#f0ad4e;color:#fff;text-align:center;padding:8px 16px;font-size:13px;font-weight:500;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;';
-        banner.textContent = 'Offline Mode \u2014 Viewing cached content';
+        banner.textContent = '{}';
         document.body.prepend(banner);
-
-        function updateBanner(isOffline) {
+        function updateBanner(isOffline) {{
             banner.style.display = isOffline ? 'block' : 'none';
-        }
-        window.addEventListener('online',  function() { updateBanner(false); });
-        window.addEventListener('offline', function() { updateBanner(true);  });
-        if (!navigator.onLine) { updateBanner(true); }
+        }}
+        window.addEventListener('online',  function() {{ updateBanner(false); }});
+        window.addEventListener('offline', function() {{ updateBanner(true);  }});
+        if (!navigator.onLine) {{ updateBanner(true); }}
         window.__messenger_updateBanner = updateBanner;
-    }
-    if (document.readyState === 'loading') {
+    }}
+    if (document.readyState === 'loading') {{
         document.addEventListener('DOMContentLoaded', injectBanner);
-    } else {
+    }} else {{
         injectBanner();
-    }
-})();
-"#;
+    }}
+}})();"#,
+        banner_text
+    )
+}
 
 /// JavaScript snippet that triggers snapshot capture and forwards the HTML to
 /// Rust via `invoke('save_snapshot', …)`.  Called from the Rust snapshot timer.
@@ -191,6 +194,7 @@ pub fn run() {
             commands::open_external,
             commands::set_zoom,
             commands::get_zoom,
+            commands::get_translations,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -208,6 +212,12 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     // ------------------------------------------------------------------
     let settings = services::auth::load_settings(app.handle()).unwrap_or_default();
     let zoom_level = settings.zoom_level;
+
+    // ------------------------------------------------------------------
+    // 1b. Detect system locale and load translations.
+    // ------------------------------------------------------------------
+    let locale = services::locale::detect_locale();
+    let tr = services::locale::get_translations(&locale);
 
     // Build a zoom-control init script that (a) defines __messenger_setZoom
     // and (b) applies the saved zoom once the body is available.
@@ -228,6 +238,13 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 }})();"#,
         zoom = zoom_level
     );
+
+    // Build the offline banner script with the translated banner text.
+    let offline_banner_script = build_offline_banner_script(&tr.offline_banner);
+
+    // Clone translated strings needed inside the offline fallback thread.
+    let offline_banner_text = tr.offline_banner.clone();
+    let loading_offline_text = tr.loading_offline.clone();
 
     // ------------------------------------------------------------------
     // 2. Clone the app handle for the navigation callback closure.
@@ -260,7 +277,7 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         .initialization_script(NOTIFICATION_OVERRIDE_SCRIPT)
         .initialization_script(UNREAD_OBSERVER_SCRIPT)
         .initialization_script(OFFLINE_DIALOG_HIDER_SCRIPT)
-        .initialization_script(OFFLINE_BANNER_SCRIPT)
+        .initialization_script(&offline_banner_script)
         .initialization_script(&zoom_init_script)
         // Spoof a desktop Chrome UA so Messenger serves its full web-app.
         .user_agent(
@@ -326,10 +343,11 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     var b=document.createElement('div');
     b.id='__messenger_offline_banner__';
     b.style.cssText='display:block;position:fixed;top:0;left:0;right:0;z-index:999999;background:#f0ad4e;color:#fff;text-align:center;padding:8px 16px;font-size:13px;font-weight:500;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;';
-    b.textContent='Offline Mode \u2014 Viewing cached content';
+    b.textContent='{banner}';
     if(document.body)document.body.prepend(b);
 }})()"#,
-                    html = html_json
+                    html = html_json,
+                    banner = offline_banner_text,
                 );
                 fallback_webview.eval(&inject).is_ok()
             } else {
@@ -338,9 +356,12 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
             if !has_cache {
                 // No cached snapshot — update the loading screen.
-                let _ = fallback_webview.eval(
-                    "if(document.querySelector('.loading p')){document.querySelector('.loading p').textContent='No internet connection. Waiting to reconnect\\u2026';}",
+                let offline_msg = serde_json::to_string(&loading_offline_text).unwrap_or_default();
+                let script = format!(
+                    "if(document.querySelector('.loading p')){{document.querySelector('.loading p').textContent={};}}",
+                    offline_msg
                 );
+                let _ = fallback_webview.eval(&script);
             }
 
             // Start reconnect timer: check every 15 s and redirect when online.
@@ -361,9 +382,19 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     // 6. System tray icon.
     // ------------------------------------------------------------------
     if let Some(icon) = app.default_window_icon() {
+        let tray_app_handle = app.handle().clone();
         match tauri::tray::TrayIconBuilder::with_id("messengerx-tray")
             .icon(icon.clone())
-            .tooltip("Messenger X")
+            .tooltip(&tr.tray_tooltip)
+            .on_tray_icon_event(move |_tray, event| {
+                if let tauri::tray::TrayIconEvent::Click { .. } = event {
+                    if let Some(window) = tray_app_handle.get_webview_window("main") {
+                        let _ = window.show();
+                        let _ = window.unminimize();
+                        let _ = window.set_focus();
+                    }
+                }
+            })
             .build(app)
         {
             Ok(_tray) => {}

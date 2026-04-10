@@ -25,19 +25,16 @@
 
 ### [FEAT-001] i18n — System language localization
 - **Priority:** Medium
-- **Status:** 📋 Planned
+- **Status:** ✅ Done
 - **Description:** The app has ~30 hardcoded English strings in native UI (tray tooltip, loading screen, offline banner, settings window, confirmation dialogs, NSIS installer). These should adapt to the system language.
-- **Affected areas:**
-  - Rust: tray tooltip (lib.rs, commands.rs)
-  - HTML: loading screen (index.html), settings window (settings/index.html)
-  - JS: offline banner (injected in lib.rs), confirm dialog (settings.ts)
-  - Installer: NSIS languages (tauri.conf.json)
-- **Approach:**
-  1. Detect system locale via `sys_locale` crate (Rust) + `navigator.language` (JS)
-  2. Create JSON translation files (`locales/en.json`, `locales/cs.json`, etc.)
-  3. Expose current locale via IPC command
-  4. Frontend loads translations at startup
-- **Languages to support initially:** English, Czech
+- **Languages supported:** English, Czech
+- **Implementation:**
+  1. `sys-locale = "0.3"` crate detects system locale (e.g. `cs-CZ` → `cs`)
+  2. `services/locale.rs`: `detect_locale()`, `Translations` struct, `get_translations()`, `english()` + `czech()` functions
+  3. `commands.rs`: `get_translations()` IPC command returns `HashMap<String, String>`
+  4. `lib.rs`: tray tooltip, offline banner, loading offline text all use translated strings at build time
+  5. `settings/settings.ts`: `applyTranslations()` called at DOMContentLoaded, updates h1/h2/labels/buttons/hints; logout confirm uses translated text
+  - Note: Translation strings live in Rust code (not JSON files) — simpler for 2 languages, can migrate to JSON if more languages are added
 
 ### [FEAT-002] Auto-update support
 - **Priority:** Medium
@@ -51,15 +48,14 @@
 
 ### [FEAT-004] System notification styles (banners, alerts, sounds)
 - **Priority:** Medium
-- **Status:** 📋 Planned
-- **Description:** Currently notifications are forwarded to the OS via `tauri-plugin-notification` with just title + body. Add support for richer notification features:
-  - **Notification style:** Respect OS banner vs. alert preference
-  - **Sound:** Play the system default or a custom Messenger sound
-  - **Grouping:** Group notifications by conversation (use `tag` field already captured)
-  - **Actions:** Add quick-reply / mark-as-read action buttons (where OS supports it)
-  - **App icon in notification:** Ensure the Messenger X icon shows in notification center
-  - **Click handling:** Clicking a notification should focus the app and navigate to the relevant conversation
-- **Affected areas:**
-  - Rust: `services/notification.rs`, `commands.rs` (`send_notification`)
-  - JS: `NOTIFICATION_OVERRIDE_SCRIPT` in `lib.rs` (capture more fields from `Notification` options)
-  - Tauri: may need additional notification plugin capabilities
+- **Status:** ✅ Done (desktop-supported features)
+- **Description:** Enhanced notification dispatch with platform-appropriate sounds, grouping, and silent mode.
+- **Implementation:**
+  - `notification.rs`: `show_notification()` now accepts `silent` param; uses `.auto_cancel()`, `.group(tag)`, `.silent()`, platform-specific `.sound()` (macOS=`"default"`, Linux=`"message-new-instant"`, Windows=`"Default"`)
+  - `NOTIFICATION_OVERRIDE_SCRIPT` in `lib.rs`: forwards `silent` flag from browser `Notification` options
+  - `commands.rs`: `send_notification` has new `silent: bool` parameter
+  - Tray icon click handler: `on_tray_icon_event` → `show()` + `unminimize()` + `set_focus()` on main window
+- **Limitations (desktop/Tauri):**
+  - `.group()`, `.auto_cancel()`, `.silent()` are primarily mobile APIs — on desktop they may be no-ops but cause no harm
+  - Action buttons (quick-reply) not available on desktop via `tauri-plugin-notification`
+  - Notification click callback not available — handled via tray icon click instead

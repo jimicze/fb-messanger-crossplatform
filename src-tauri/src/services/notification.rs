@@ -4,13 +4,14 @@
 use tauri::AppHandle;
 use tauri_plugin_notification::NotificationExt;
 
-/// Display a native OS notification.
+/// Display a native OS notification with platform-appropriate sound.
 ///
 /// # Arguments
-/// * `app`   – Tauri application handle used to access the notification plugin.
-/// * `title` – Notification title text.
-/// * `body`  – Notification body text.
-/// * `_tag`  – Optional tag (used for deduplication on some platforms; currently unused).
+/// * `app`    – Tauri application handle used to access the notification plugin.
+/// * `title`  – Notification title text.
+/// * `body`   – Notification body text.
+/// * `tag`    – Conversation tag for deduplication (used as group identifier).
+/// * `silent` – If `true`, suppress the notification sound.
 ///
 /// # Errors
 /// Returns an error string if the notification plugin fails to show the notification.
@@ -18,12 +19,47 @@ pub fn show_notification(
     app: &AppHandle,
     title: &str,
     body: &str,
-    _tag: &str,
+    tag: &str,
+    silent: bool,
 ) -> Result<(), String> {
-    app.notification()
+    let mut builder = app
+        .notification()
         .builder()
         .title(title)
         .body(body)
-        .show()
-        .map_err(|e| e.to_string())
+        .auto_cancel();
+
+    // Group notifications by conversation tag for better organization.
+    if !tag.is_empty() {
+        builder = builder.group(tag);
+    }
+
+    // Play notification sound unless explicitly silenced.
+    if !silent {
+        builder = builder.sound(default_sound());
+    } else {
+        builder = builder.silent();
+    }
+
+    builder.show().map_err(|e| e.to_string())
+}
+
+/// Returns the platform-appropriate default notification sound name.
+///
+/// - **macOS**: `"default"` plays the system notification sound.
+/// - **Linux**: `"message-new-instant"` uses the XDG sound theme.
+/// - **Windows**: `"Default"` plays the default Windows notification sound.
+fn default_sound() -> &'static str {
+    #[cfg(target_os = "macos")]
+    {
+        "default"
+    }
+    #[cfg(target_os = "linux")]
+    {
+        "message-new-instant"
+    }
+    #[cfg(target_os = "windows")]
+    {
+        "Default"
+    }
 }

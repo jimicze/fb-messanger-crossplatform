@@ -8,11 +8,71 @@ interface AppSettings {
   zoom_level: number;
 }
 
+/**
+ * Apply translation strings to all visible text nodes in the settings UI.
+ */
+function applyTranslations(t: Record<string, string>): void {
+  // Page title
+  document.title = `${t.settings_title ?? 'Settings'} \u2014 Messenger X`;
+
+  // Main heading
+  const h1 = document.querySelector('h1');
+  if (h1) h1.textContent = t.settings_title ?? 'Settings';
+
+  // Section headings — match by current (English) text so this is safe to
+  // call even after a previous translation pass.
+  document.querySelectorAll('h2').forEach((el) => {
+    switch (el.textContent?.trim()) {
+      case 'Account': el.textContent = t.settings_account ?? 'Account'; break;
+      case 'Display': el.textContent = t.settings_display ?? 'Display'; break;
+      case 'Data':    el.textContent = t.settings_data    ?? 'Data';    break;
+      case 'About':   el.textContent = t.settings_about   ?? 'About';   break;
+    }
+  });
+
+  // "Stay logged in" label — inside <label class="setting-row">
+  const stayLoggedInLabel = document.querySelector('label.setting-row span');
+  if (stayLoggedInLabel) {
+    stayLoggedInLabel.textContent = t.settings_stay_logged_in ?? 'Stay logged in';
+  }
+
+  // "Zoom Level" label — inside <div class="setting-row">
+  const zoomLabel = document.querySelector('div.setting-row span');
+  if (zoomLabel) zoomLabel.textContent = t.settings_zoom_level ?? 'Zoom Level';
+
+  // Logout button
+  const logoutBtnEl = document.querySelector('.danger-btn');
+  if (logoutBtnEl) logoutBtnEl.textContent = t.settings_logout ?? 'Log out & clear all data';
+
+  // Hint paragraphs: first = logout hint, second = about description
+  const hints = document.querySelectorAll('.hint');
+  if (hints[0]) {
+    hints[0].textContent =
+      t.settings_logout_hint ??
+      'This will clear your session, cached data, and all settings.';
+  }
+  if (hints[1]) {
+    hints[1].textContent =
+      t.settings_about_description ??
+      'Cross-platform Messenger client built with Tauri.';
+  }
+}
+
 // Wait for Tauri to be available
 async function initSettings(): Promise<void> {
   try {
     const { invoke } = await import('@tauri-apps/api/core');
-    
+
+    // Load and apply translations first so the UI is localised before
+    // any user interaction.
+    let translations: Record<string, string> = {};
+    try {
+      translations = await invoke<Record<string, string>>('get_translations');
+      applyTranslations(translations);
+    } catch (e) {
+      console.error('[Settings] Failed to load translations:', e);
+    }
+
     const stayLoggedInCheckbox = document.getElementById('stay-logged-in') as HTMLInputElement;
     const zoomLevelDisplay = document.getElementById('zoom-level') as HTMLSpanElement;
     const zoomInBtn = document.getElementById('zoom-in') as HTMLButtonElement;
@@ -46,9 +106,12 @@ async function initSettings(): Promise<void> {
       zoomLevelDisplay.textContent = `${Math.round(newZoom * 100)}%`;
     });
 
-    // Logout button
+    // Logout button — use translated confirmation message when available.
     logoutBtn.addEventListener('click', async () => {
-      if (confirm('Are you sure you want to log out and clear all data?')) {
+      const confirmMsg =
+        translations.settings_logout_confirm ??
+        'Are you sure you want to log out and clear all data?';
+      if (confirm(confirmMsg)) {
         await invoke('clear_all_data');
         // Close settings window
         const { getCurrentWindow } = await import('@tauri-apps/api/window');

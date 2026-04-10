@@ -2,5 +2,6 @@
 
 pub mod auth;
 pub mod cache;
+pub mod locale;
 pub mod network;
 pub mod notification;

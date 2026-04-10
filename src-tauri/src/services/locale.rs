@@ -1,0 +1,140 @@
+//! Locale detection and translation service.
+//! Detects the system language and provides translated strings.
+
+/// Supported application locales.
+const SUPPORTED_LOCALES: &[&str] = &["en", "cs"];
+
+/// Default fallback locale.
+const DEFAULT_LOCALE: &str = "en";
+
+/// Detects the system locale and returns the best matching supported locale code.
+///
+/// Uses the `sys_locale` crate to read the OS language setting, then matches
+/// against supported locales. Falls back to `"en"` if no match is found.
+pub fn detect_locale() -> String {
+    let sys = sys_locale::get_locale().unwrap_or_else(|| DEFAULT_LOCALE.to_string());
+    // sys might be "cs-CZ", "en-US", etc. — extract the language prefix.
+    let lang = sys
+        .split('-')
+        .next()
+        .or_else(|| sys.split('_').next())
+        .unwrap_or(DEFAULT_LOCALE);
+
+    if SUPPORTED_LOCALES.contains(&lang) {
+        lang.to_string()
+    } else {
+        DEFAULT_LOCALE.to_string()
+    }
+}
+
+/// Translation strings for the application UI.
+///
+/// Each field corresponds to a user-visible string in the native UI
+/// (tray, loading screen, offline banner, settings window, etc.).
+#[derive(Debug, Clone)]
+pub struct Translations {
+    // Tray
+    /// Default tray tooltip (no unread messages).
+    pub tray_tooltip: String,
+    /// Tray tooltip format string with `{}` placeholder for the unread count.
+    pub tray_tooltip_unread: String,
+
+    // Loading screen
+    /// Loading screen window title.
+    pub loading_title: String,
+    /// Loading screen body text shown while the page is loading.
+    pub loading_text: String,
+    /// Loading screen body text shown when offline.
+    pub loading_offline: String,
+
+    // Offline banner
+    /// Text displayed in the inline offline-mode banner.
+    pub offline_banner: String,
+
+    // Settings window
+    /// Settings window title and heading.
+    pub settings_title: String,
+    /// "Account" section heading.
+    pub settings_account: String,
+    /// "Stay logged in" toggle label.
+    pub settings_stay_logged_in: String,
+    /// "Display" section heading.
+    pub settings_display: String,
+    /// "Zoom Level" label.
+    pub settings_zoom_level: String,
+    /// "Data" section heading.
+    pub settings_data: String,
+    /// Logout button label.
+    pub settings_logout: String,
+    /// Hint text below the logout button.
+    pub settings_logout_hint: String,
+    /// Confirmation dialog message for logout.
+    pub settings_logout_confirm: String,
+    /// "About" section heading.
+    pub settings_about: String,
+    /// About section description text.
+    pub settings_about_description: String,
+}
+
+/// Returns the translation strings for the given locale code.
+///
+/// Falls back to English if the locale is not supported.
+pub fn get_translations(locale: &str) -> Translations {
+    match locale {
+        "cs" => czech(),
+        _ => english(),
+    }
+}
+
+/// English translation strings.
+fn english() -> Translations {
+    Translations {
+        tray_tooltip: "Messenger X".to_string(),
+        tray_tooltip_unread: "Messenger X ({})".to_string(),
+        loading_title: "Messenger X".to_string(),
+        loading_text: "Loading...".to_string(),
+        loading_offline: "No internet connection. Waiting to reconnect\u{2026}".to_string(),
+        offline_banner: "Offline Mode \u{2014} Viewing cached content".to_string(),
+        settings_title: "Settings".to_string(),
+        settings_account: "Account".to_string(),
+        settings_stay_logged_in: "Stay logged in".to_string(),
+        settings_display: "Display".to_string(),
+        settings_zoom_level: "Zoom Level".to_string(),
+        settings_data: "Data".to_string(),
+        settings_logout: "Log out & clear all data".to_string(),
+        settings_logout_hint: "This will clear your session, cached data, and all settings."
+            .to_string(),
+        settings_logout_confirm: "Are you sure you want to log out and clear all data?".to_string(),
+        settings_about: "About".to_string(),
+        settings_about_description: "Cross-platform Messenger client built with Tauri.".to_string(),
+    }
+}
+
+/// Czech translation strings.
+fn czech() -> Translations {
+    Translations {
+        tray_tooltip: "Messenger X".to_string(),
+        tray_tooltip_unread: "Messenger X ({})".to_string(),
+        loading_title: "Messenger X".to_string(),
+        loading_text: "Na\u{010d}ít\u{00e1}n\u{00ed}...".to_string(),
+        loading_offline: "\u{017d}\u{00e1}dn\u{00e9} p\u{0159}ipojen\u{00ed} k internetu. \u{010c}ek\u{00e1}m na obnoven\u{00ed}\u{2026}".to_string(),
+        offline_banner: "Offline re\u{017e}im \u{2014} Zobrazuji ulo\u{017e}en\u{00fd} obsah"
+            .to_string(),
+        settings_title: "Nastaven\u{00ed}".to_string(),
+        settings_account: "\u{00da}\u{010d}et".to_string(),
+        settings_stay_logged_in: "Z\u{016f}stat p\u{0159}ihl\u{00e1}\u{0161}en/a".to_string(),
+        settings_display: "Zobrazen\u{00ed}".to_string(),
+        settings_zoom_level: "\u{00da}rove\u{0148} p\u{0159}ibl\u{00ed}\u{017e}en\u{00ed}"
+            .to_string(),
+        settings_data: "Data".to_string(),
+        settings_logout: "Odhl\u{00e1}sit se a smazat v\u{0161}echna data".to_string(),
+        settings_logout_hint:
+            "T\u{00ed}m se vyma\u{017e}e va\u{0161}e relace, mezipam\u{011b}\u{0165} a ve\u{0161}ker\u{00e1} nastaven\u{00ed}."
+                .to_string(),
+        settings_logout_confirm:
+            "Opravdu se chcete odhl\u{00e1}sit a smazat v\u{0161}echna data?".to_string(),
+        settings_about: "O aplikaci".to_string(),
+        settings_about_description:
+            "Multiplatformn\u{00ed} Messenger klient postaven\u{00fd} na Tauri.".to_string(),
+    }
+}
