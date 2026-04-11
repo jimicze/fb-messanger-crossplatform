@@ -96,7 +96,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDQ3NDEyN0RFNjE1QUIzRjEKUldUeHMxcGgzaWRCUjR2OUVVcDQ0UTJuS2NuQ3Z3ellyZXVBUTNHd3hQbEhOMUZmMXpEeWhIc04K",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEM1MjE4NDRGM0MzODcyRkUKUldUK2NqZzhUNFFoeFdsU3ZYK1lDd0lzRURwemZ1ODhDNGpXMDk3dzkwQjFTQU1XQmEvUnhLa24K",
       "endpoints": [
         "https://github.com/jimicze/fb-messanger-crossplatform/releases/latest/download/latest.json"
       ]
