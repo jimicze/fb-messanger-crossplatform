@@ -16,14 +16,9 @@ env:
 #
 # Matrix produces artifacts for:
 #   macOS      — arm64 (.dmg) + x86_64 (.dmg)
-#   Windows    — x64 (.exe/.msi) + arm64 (.exe/.msi)
-#   Linux x64  — .deb + .rpm + .AppImage
-#   Linux arm64— .deb + .rpm + .AppImage
-#
-# Distro coverage:
-#   Debian / Ubuntu / Linux Mint → .deb
-#   Fedora / RHEL / openSUSE     → .rpm
-#   Arch / NixOS / any distro    → .AppImage (universal)
+#   Windows    — x64 (.exe) + arm64 (.exe)
+#   Linux x64  — .AppImage
+#   Linux arm64— .AppImage
 # ─────────────────────────────────────────────────────────────────────────────
 
 jobs:
@@ -249,18 +244,6 @@ jobs:
                 elif [[ "$asset" == *_aarch64.* ]]; then
                   add_entry "linux-aarch64"          "$asset" "$sig_path"
                   add_entry "linux-aarch64-appimage" "$asset" "$sig_path"
-                fi ;;
-              *.deb)
-                if [[ "$asset" == *_amd64.* ]]; then
-                  add_entry "linux-x86_64-deb" "$asset" "$sig_path"
-                elif [[ "$asset" == *_arm64.* ]]; then
-                  add_entry "linux-aarch64-deb" "$asset" "$sig_path"
-                fi ;;
-              *.rpm)
-                if [[ "$asset" == *x86_64.* ]]; then
-                  add_entry "linux-x86_64-rpm" "$asset" "$sig_path"
-                elif [[ "$asset" == *aarch64.* ]]; then
-                  add_entry "linux-aarch64-rpm" "$asset" "$sig_path"
                 fi ;;
               *-setup.exe)
                 if [[ "$asset" == *_x64-* ]]; then

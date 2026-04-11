@@ -252,6 +252,8 @@ pub fn run() {
             commands::get_zoom,
             commands::get_translations,
             commands::open_settings,
+            commands::check_for_update,
+            commands::install_update,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

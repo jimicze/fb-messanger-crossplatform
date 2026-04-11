@@ -243,6 +243,44 @@ pub fn open_settings(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+/// Check whether a newer version is available from the update endpoint.
+///
+/// Returns `Some(version_string)` if an update is available, `None` otherwise.
+/// Used by the settings window which cannot use ES module imports directly.
+#[tauri::command]
+pub async fn check_for_update(app: AppHandle) -> Result<Option<String>, String> {
+    use tauri_plugin_updater::UpdaterExt;
+    let update = app
+        .updater()
+        .map_err(|e| e.to_string())?
+        .check()
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(update.map(|u| u.version))
+}
+
+/// Download and install the available update (if any).
+///
+/// Should be called after `check_for_update` returns `Some(_)`.
+/// After this returns successfully the caller should trigger a relaunch.
+#[tauri::command]
+pub async fn install_update(app: AppHandle) -> Result<(), String> {
+    use tauri_plugin_updater::UpdaterExt;
+    let update = app
+        .updater()
+        .map_err(|e| e.to_string())?
+        .check()
+        .await
+        .map_err(|e| e.to_string())?;
+    if let Some(update) = update {
+        update
+            .download_and_install(|_chunk, _total| {}, || {})
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

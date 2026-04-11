@@ -1,6 +1,6 @@
 {
   "productName": "Messenger X",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "identifier": "com.lasakondrej.messengerx",
   "build": {
     "frontendDist": "../src"
@@ -14,7 +14,7 @@
   "bundle": {
     "createUpdaterArtifacts": true,
     "active": true,
-    "targets": ["dmg", "app", "nsis", "deb", "rpm", "appimage"],
+    "targets": ["dmg", "app", "nsis", "appimage"],
 
     "icon": [
       "icons/32x32.png",
@@ -30,33 +30,9 @@
     "longDescription": "Messenger X is a lightweight, cross-platform desktop client for Facebook Messenger built with Tauri. It provides native desktop notifications, system tray integration, offline detection, and a clean WebView-powered interface on macOS, Windows, and Linux.",
 
     "linux": {
-      "deb": {
-        "depends": [
-          "libwebkit2gtk-4.1-0",
-          "libappindicator3-1",
-          "librsvg2-2",
-          "libglib2.0-0",
-          "libssl3",
-          "libdbus-1-3"
-        ],
-        "files": {}
-      },
       "appimage": {
         "bundleMediaFramework": false,
         "files": {}
-      },
-      "rpm": {
-        "epoch": 0,
-        "files": {},
-        "release": "1",
-        "depends": [
-          "webkit2gtk4.1",
-          "libappindicator-gtk3",
-          "librsvg2",
-          "glib2",
-          "openssl",
-          "dbus"
-        ]
       }
     },
 
