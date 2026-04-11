@@ -284,25 +284,13 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let locale = services::locale::detect_locale();
     let tr = services::locale::get_translations(&locale);
 
-    // Build a zoom-control init script that (a) defines __messenger_setZoom
-    // and (b) applies the saved zoom once the body is available.
-    let zoom_init_script = format!(
-        r#"(function() {{
-    window.__messenger_setZoom = function(level) {{
-        document.body.style.zoom = level;
-    }};
-    var __initial_zoom = {zoom};
-    function applyZoom() {{
-        if (document.body) {{ document.body.style.zoom = __initial_zoom; }}
-    }}
-    if (document.readyState === 'loading') {{
-        document.addEventListener('DOMContentLoaded', applyZoom);
-    }} else {{
-        applyZoom();
-    }}
-}})();"#,
-        zoom = zoom_level
-    );
+    // Build a zoom-control init script that defines __messenger_setZoom
+    // as a no-op stub for backward compatibility (the actual zoom is now
+    // handled via the native webview.set_zoom() API, see below).
+    // NOTE: We no longer use CSS body.style.zoom because it causes layout
+    // issues — the page content doesn't fill the viewport at zoom < 100%.
+    let zoom_init_script = "(function() { window.__messenger_setZoom = function() {}; })();"
+        .to_string();
 
     // Build the offline banner script with the translated banner text.
     let offline_banner_script = build_offline_banner_script(&tr.offline_banner);
@@ -385,6 +373,17 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             true
         })
         .build()?;
+
+    // ------------------------------------------------------------------
+    // 4b. Apply persisted zoom level via the native WebView API.
+    //     This scales the entire viewport (not just body content), so the
+    //     page layout fills the window correctly at all zoom levels.
+    // ------------------------------------------------------------------
+    if (zoom_level - 1.0).abs() > f64::EPSILON {
+        if let Err(e) = webview.set_zoom(zoom_level) {
+            log::warn!("[MessengerX] Failed to apply initial zoom {zoom_level}: {e}");
+        }
+    }
 
     // ------------------------------------------------------------------
     // 5. Offline fallback: inject cached content or show offline message.

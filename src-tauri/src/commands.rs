@@ -165,7 +165,9 @@ pub fn open_external(url: String, app: AppHandle) -> Result<(), String> {
 /// Set and persist the webview zoom level.
 ///
 /// The level is clamped to [0.5, 3.0].  The new level is saved to settings and
-/// immediately applied to the main webview via `window.__messenger_setZoom`.
+/// immediately applied to the main webview via the native `set_zoom` API.
+/// Unlike CSS `body.style.zoom`, the native API scales the entire viewport so
+/// the page layout fills the window correctly at all zoom levels.
 #[tauri::command]
 pub fn set_zoom(level: f64, app: AppHandle) -> Result<(), String> {
     let clamped = level.clamp(MIN_ZOOM, MAX_ZOOM);
@@ -175,14 +177,9 @@ pub fn set_zoom(level: f64, app: AppHandle) -> Result<(), String> {
     settings.zoom_level = clamped;
     crate::services::auth::save_settings(&app, &settings)?;
 
-    // Apply to the live webview.
+    // Apply native zoom to the live webview.
     if let Some(webview) = app.get_webview_window("main") {
-        let script = format!(
-            "window.__messenger_setZoom && window.__messenger_setZoom({});",
-            clamped
-        );
-        let result: tauri::Result<()> = webview.eval(&script);
-        result.map_err(|e| e.to_string())?;
+        webview.set_zoom(clamped).map_err(|e| e.to_string())?;
     }
 
     Ok(())
