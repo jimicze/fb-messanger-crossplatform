@@ -235,6 +235,10 @@ pub fn run() {
         .plugin(tauri_plugin_window_state::Builder::new().build())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
         .setup(|app| {
             setup_app(app)?;
             Ok(())
@@ -254,6 +258,8 @@ pub fn run() {
             commands::open_settings,
             commands::check_for_update,
             commands::install_update,
+            commands::set_autostart,
+            commands::is_autostart_enabled,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -332,6 +338,7 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         .inner_size(1200.0, 800.0)
         .min_inner_size(400.0, 300.0)
         .resizable(true)
+        .visible(!settings.start_minimized)
         // Inject all JS at document-start.
         .initialization_script(NOTIFICATION_OVERRIDE_SCRIPT)
         .initialization_script(UNREAD_OBSERVER_SCRIPT)

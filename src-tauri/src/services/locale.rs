@@ -93,6 +93,22 @@ pub struct Translations {
     pub tray_settings: String,
     /// "Quit" tray menu item label.
     pub tray_quit: String,
+
+    // Notifications section
+    /// "Notifications" section heading.
+    pub settings_notifications: String,
+    /// "Enable notifications" toggle label.
+    pub settings_notifications_enabled: String,
+    /// "Notification sound" toggle label.
+    pub settings_notification_sound: String,
+
+    // Startup section
+    /// "Startup" section heading.
+    pub settings_startup: String,
+    /// "Start at login" toggle label.
+    pub settings_autostart: String,
+    /// "Start minimized" toggle label.
+    pub settings_start_minimized: String,
 }
 
 /// Returns the translation strings for the given locale code.
@@ -138,6 +154,12 @@ fn english() -> Translations {
         tray_show: "Show Window".to_string(),
         tray_settings: "Settings".to_string(),
         tray_quit: "Quit".to_string(),
+        settings_notifications: "Notifications".to_string(),
+        settings_notifications_enabled: "Enable notifications".to_string(),
+        settings_notification_sound: "Notification sound".to_string(),
+        settings_startup: "Startup".to_string(),
+        settings_autostart: "Start at login".to_string(),
+        settings_start_minimized: "Start minimized to tray".to_string(),
     }
 }
 
@@ -179,6 +201,12 @@ fn czech() -> Translations {
         tray_show: "Zobrazit okno".to_string(),
         tray_settings: "Nastaven\u{00ed}".to_string(),
         tray_quit: "Ukon\u{010d}it".to_string(),
+        settings_notifications: "Ozn\u{00e1}men\u{00ed}".to_string(),
+        settings_notifications_enabled: "Povolit ozn\u{00e1}men\u{00ed}".to_string(),
+        settings_notification_sound: "Zvuk ozn\u{00e1}men\u{00ed}".to_string(),
+        settings_startup: "Spu\u{0161}t\u{011b}n\u{00ed}".to_string(),
+        settings_autostart: "Spustit p\u{0159}i p\u{0159}ihl\u{00e1}\u{0161}en\u{00ed}".to_string(),
+        settings_start_minimized: "Spustit minimalizovan\u{011b}".to_string(),
     }
 }
 
@@ -260,6 +288,12 @@ mod tests {
                 &t.tray_show,
                 &t.tray_settings,
                 &t.tray_quit,
+                &t.settings_notifications,
+                &t.settings_notifications_enabled,
+                &t.settings_notification_sound,
+                &t.settings_startup,
+                &t.settings_autostart,
+                &t.settings_start_minimized,
             ];
             for (i, field) in fields.iter().enumerate() {
                 assert!(

@@ -11,11 +11,20 @@ use tauri::{AppHandle, Manager};
 
 /// Application settings persisted across restarts.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct AppSettings {
     /// Whether to persist the login session across app restarts.
     pub stay_logged_in: bool,
     /// Webview zoom level in the range [0.5, 3.0] (1.0 = 100 %).
     pub zoom_level: f64,
+    /// Whether native OS notifications are enabled.
+    pub notifications_enabled: bool,
+    /// Whether notification sounds are enabled (false = silent).
+    pub notification_sound: bool,
+    /// Whether the app auto-starts at system login.
+    pub autostart: bool,
+    /// Whether the app starts minimized to the system tray.
+    pub start_minimized: bool,
 }
 
 impl Default for AppSettings {
@@ -23,6 +32,10 @@ impl Default for AppSettings {
         Self {
             stay_logged_in: true,
             zoom_level: 1.0,
+            notifications_enabled: true,
+            notification_sound: true,
+            autostart: false,
+            start_minimized: false,
         }
     }
 }
@@ -69,7 +82,13 @@ pub fn send_notification(
     silent: bool,
     app: AppHandle,
 ) -> Result<(), String> {
-    crate::services::notification::show_notification(&app, &title, &body, &tag, silent)
+    let settings = crate::services::auth::load_settings(&app).unwrap_or_default();
+    if !settings.notifications_enabled {
+        return Ok(());
+    }
+    // Force silent if user disabled notification sounds.
+    let effective_silent = silent || !settings.notification_sound;
+    crate::services::notification::show_notification(&app, &title, &body, &tag, effective_silent)
 }
 
 /// Update the unread-message count badge / tray tooltip.
@@ -230,6 +249,24 @@ pub fn get_translations() -> Result<std::collections::HashMap<String, String>, S
         "settings_install_restart".to_string(),
         t.settings_install_restart,
     );
+    map.insert(
+        "settings_notifications".to_string(),
+        t.settings_notifications,
+    );
+    map.insert(
+        "settings_notifications_enabled".to_string(),
+        t.settings_notifications_enabled,
+    );
+    map.insert(
+        "settings_notification_sound".to_string(),
+        t.settings_notification_sound,
+    );
+    map.insert("settings_startup".to_string(), t.settings_startup);
+    map.insert("settings_autostart".to_string(), t.settings_autostart);
+    map.insert(
+        "settings_start_minimized".to_string(),
+        t.settings_start_minimized,
+    );
     Ok(map)
 }
 
@@ -281,6 +318,27 @@ pub async fn install_update(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+/// Enable or disable auto-start at system login.
+///
+/// Wraps the autostart plugin so the settings window can call it via `invoke`.
+#[tauri::command]
+pub fn set_autostart(enabled: bool, app: AppHandle) -> Result<(), String> {
+    use tauri_plugin_autostart::ManagerExt;
+    let autolaunch = app.autolaunch();
+    if enabled {
+        autolaunch.enable().map_err(|e| e.to_string())
+    } else {
+        autolaunch.disable().map_err(|e| e.to_string())
+    }
+}
+
+/// Check whether auto-start is currently enabled.
+#[tauri::command]
+pub fn is_autostart_enabled(app: AppHandle) -> Result<bool, String> {
+    use tauri_plugin_autostart::ManagerExt;
+    app.autolaunch().is_enabled().map_err(|e| e.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -297,19 +355,33 @@ mod tests {
         let settings = AppSettings {
             stay_logged_in: false,
             zoom_level: 1.5,
+            notifications_enabled: false,
+            notification_sound: false,
+            autostart: true,
+            start_minimized: true,
         };
         let json = serde_json::to_string(&settings).expect("serialize");
         let deserialized: AppSettings = serde_json::from_str(&json).expect("deserialize");
         assert!(!deserialized.stay_logged_in);
         assert!((deserialized.zoom_level - 1.5).abs() < f64::EPSILON);
+        assert!(!deserialized.notifications_enabled);
+        assert!(!deserialized.notification_sound);
+        assert!(deserialized.autostart);
+        assert!(deserialized.start_minimized);
     }
 
     #[test]
-    fn test_app_settings_deserialize_defaults_on_missing_fields() {
-        // If we load a JSON with only one field, serde should error (both fields required).
-        let json = r#"{"stay_logged_in": true}"#;
-        let result: Result<AppSettings, _> = serde_json::from_str(json);
-        assert!(result.is_err(), "Missing zoom_level should cause error");
+    fn test_app_settings_backward_compat_missing_fields() {
+        // Old settings JSON with only original fields — new fields should default.
+        let json = r#"{"stay_logged_in": true, "zoom_level": 1.2}"#;
+        let settings: AppSettings = serde_json::from_str(json).expect("deserialize");
+        assert!(settings.stay_logged_in);
+        assert!((settings.zoom_level - 1.2).abs() < f64::EPSILON);
+        // New fields use Default values:
+        assert!(settings.notifications_enabled);
+        assert!(settings.notification_sound);
+        assert!(!settings.autostart);
+        assert!(!settings.start_minimized);
     }
 
     #[test]

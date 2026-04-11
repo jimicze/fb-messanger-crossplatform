@@ -22,6 +22,24 @@
     </div>
 
     <div class="setting-group">
+      <h2>Notifications</h2>
+      <label class="setting-row">
+        <span>Enable notifications</span>
+        <div class="toggle-switch">
+          <input type="checkbox" id="notifications-enabled" checked />
+          <span class="toggle-slider"></span>
+        </div>
+      </label>
+      <label class="setting-row">
+        <span>Notification sound</span>
+        <div class="toggle-switch">
+          <input type="checkbox" id="notification-sound" checked />
+          <span class="toggle-slider"></span>
+        </div>
+      </label>
+    </div>
+
+    <div class="setting-group">
       <h2>Display</h2>
       <div class="setting-row">
         <span>Zoom Level</span>
@@ -31,6 +49,24 @@
           <button id="zoom-in" class="zoom-btn">+</button>
         </div>
       </div>
+    </div>
+
+    <div class="setting-group">
+      <h2>Startup</h2>
+      <label class="setting-row">
+        <span>Start at login</span>
+        <div class="toggle-switch">
+          <input type="checkbox" id="autostart" />
+          <span class="toggle-slider"></span>
+        </div>
+      </label>
+      <label class="setting-row">
+        <span>Start minimized to tray</span>
+        <div class="toggle-switch">
+          <input type="checkbox" id="start-minimized" />
+          <span class="toggle-slider"></span>
+        </div>
+      </label>
     </div>
 
     <div class="setting-group">
@@ -81,11 +117,13 @@
 
         document.querySelectorAll('h2').forEach(function (el) {
           switch (el.textContent.trim()) {
-            case 'Account': el.textContent = t('settings_account', 'Account'); break;
-            case 'Display': el.textContent = t('settings_display', 'Display'); break;
-            case 'Data':    el.textContent = t('settings_data',    'Data');    break;
-            case 'Updates': el.textContent = t('settings_updates', 'Updates'); break;
-            case 'About':   el.textContent = t('settings_about',   'About');   break;
+            case 'Account':       el.textContent = t('settings_account',       'Account');       break;
+            case 'Notifications': el.textContent = t('settings_notifications', 'Notifications'); break;
+            case 'Display':       el.textContent = t('settings_display',       'Display');       break;
+            case 'Startup':       el.textContent = t('settings_startup',       'Startup');       break;
+            case 'Data':          el.textContent = t('settings_data',          'Data');          break;
+            case 'Updates':       el.textContent = t('settings_updates',       'Updates');       break;
+            case 'About':         el.textContent = t('settings_about',         'About');         break;
           }
         });
 
@@ -104,6 +142,42 @@
 
         var checkBtn = document.getElementById('check-update-btn');
         if (checkBtn) checkBtn.textContent = t('settings_check_update', 'Check for updates');
+
+        // Notification labels
+        const notifEnabledEl = document.querySelector('#notifications-enabled');
+        if (notifEnabledEl) {
+          const labelEl = notifEnabledEl.closest('label');
+          if (labelEl) {
+            const span = labelEl.querySelector('span:first-child');
+            if (span) span.textContent = t('settings_notifications_enabled', 'Enable notifications');
+          }
+        }
+        const notifSoundEl = document.querySelector('#notification-sound');
+        if (notifSoundEl) {
+          const labelEl = notifSoundEl.closest('label');
+          if (labelEl) {
+            const span = labelEl.querySelector('span:first-child');
+            if (span) span.textContent = t('settings_notification_sound', 'Notification sound');
+          }
+        }
+
+        // Startup labels
+        const autostartEl = document.querySelector('#autostart');
+        if (autostartEl) {
+          const labelEl = autostartEl.closest('label');
+          if (labelEl) {
+            const span = labelEl.querySelector('span:first-child');
+            if (span) span.textContent = t('settings_autostart', 'Start at login');
+          }
+        }
+        const minimizedEl = document.querySelector('#start-minimized');
+        if (minimizedEl) {
+          const labelEl = minimizedEl.closest('label');
+          if (labelEl) {
+            const span = labelEl.querySelector('span:first-child');
+            if (span) span.textContent = t('settings_start_minimized', 'Start minimized to tray');
+          }
+        }
       }
 
       // ── Init ───────────────────────────────────────────────────────────────
@@ -145,6 +219,23 @@
         stayCheckbox.checked = settings.stay_logged_in;
         zoomDisplay.textContent = Math.round(settings.zoom_level * 100) + '%';
 
+        const notifEnabledCheckbox = document.getElementById('notifications-enabled');
+        const notifSoundCheckbox   = document.getElementById('notification-sound');
+        const autostartCheckbox    = document.getElementById('autostart');
+        const startMinCheckbox     = document.getElementById('start-minimized');
+
+        notifEnabledCheckbox.checked = settings.notifications_enabled;
+        notifSoundCheckbox.checked = settings.notification_sound;
+        startMinCheckbox.checked = settings.start_minimized;
+
+        // Autostart: query actual OS state (may differ from saved setting)
+        try {
+          const osAutostart = await invoke('is_autostart_enabled');
+          autostartCheckbox.checked = osAutostart;
+        } catch (e) {
+          autostartCheckbox.checked = settings.autostart;
+        }
+
         // ── Stay logged in ──────────────────────────────────────────────────
         stayCheckbox.addEventListener('change', async function () {
           try {
@@ -153,6 +244,27 @@
             await invoke('save_settings', { settings: s });
           } catch (e) {
             console.error('[Settings] save_settings failed:', e);
+          }
+        });
+
+        // ── Notifications ───────────────────────────────────────────────────
+        notifEnabledCheckbox.addEventListener('change', async function () {
+          try {
+            const s = await invoke('get_settings');
+            s.notifications_enabled = notifEnabledCheckbox.checked;
+            await invoke('save_settings', { settings: s });
+          } catch (e) {
+            console.error('[Settings] save notifications_enabled failed:', e);
+          }
+        });
+
+        notifSoundCheckbox.addEventListener('change', async function () {
+          try {
+            const s = await invoke('get_settings');
+            s.notification_sound = notifSoundCheckbox.checked;
+            await invoke('save_settings', { settings: s });
+          } catch (e) {
+            console.error('[Settings] save notification_sound failed:', e);
           }
         });
 
@@ -176,6 +288,30 @@
             zoomDisplay.textContent = Math.round(newZoom * 100) + '%';
           } catch (e) {
             console.error('[Settings] set_zoom failed:', e);
+          }
+        });
+
+        // ── Startup ─────────────────────────────────────────────────────────
+        autostartCheckbox.addEventListener('change', async function () {
+          try {
+            await invoke('set_autostart', { enabled: autostartCheckbox.checked });
+            const s = await invoke('get_settings');
+            s.autostart = autostartCheckbox.checked;
+            await invoke('save_settings', { settings: s });
+          } catch (e) {
+            console.error('[Settings] set_autostart failed:', e);
+            // Revert checkbox on failure
+            autostartCheckbox.checked = !autostartCheckbox.checked;
+          }
+        });
+
+        startMinCheckbox.addEventListener('change', async function () {
+          try {
+            const s = await invoke('get_settings');
+            s.start_minimized = startMinCheckbox.checked;
+            await invoke('save_settings', { settings: s });
+          } catch (e) {
+            console.error('[Settings] save start_minimized failed:', e);
           }
         });
 

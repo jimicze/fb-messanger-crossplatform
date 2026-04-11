@@ -211,7 +211,7 @@ input:checked + .toggle-slider:before {
   color: #65676b;
   margin-bottom: 8px;
   min-height: 0;
-  transition: all 0.2s;
+  transition: color 0.2s;
 }
 
 .update-status.success {
