@@ -152,7 +152,8 @@ jobs:
 
   # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   # Phase 2: Build on all platforms and upload artifacts to the release.
-  # Checks out the exact tag so all jobs use the bumped version files.
+  # Checks out the exact tag, syncs source versions to the tag name
+  # (idempotent — handles both workflow_dispatch and manual tag push).
   # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   build-tauri:
     needs: [bump-version, create-release]
@@ -229,6 +230,38 @@ jobs:
         with:
           node-version: 'lts/*'
           cache: 'npm'
+
+      # ── Sync source versions to match release tag ────────────────────────
+      # Ensures binaries always carry the correct version, even when the
+      # release was triggered by a manual `git tag vX.Y.Z && git push`.
+      # On workflow_dispatch the files already match, so this is idempotent.
+      - name: Sync source versions to release tag
+        shell: bash
+        run: |
+          TAG="${{ needs.create-release.outputs.tag-name }}"
+          VERSION="${TAG#v}"
+          echo "Ensuring source files match release version: ${VERSION}"
+          node -e "
+            const fs = require('fs');
+            const v = '${VERSION}';
+
+            // package.json
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            pkg.version = v;
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+
+            // tauri.conf.json
+            const tc = JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json', 'utf8'));
+            tc.version = v;
+            fs.writeFileSync('src-tauri/tauri.conf.json', JSON.stringify(tc, null, 2) + '\n');
+
+            // Cargo.toml — replace first version = line (under [package])
+            let cargo = fs.readFileSync('src-tauri/Cargo.toml', 'utf8');
+            cargo = cargo.replace(/^version = \"[^\"]*\"/m, 'version = \"' + v + '\"');
+            fs.writeFileSync('src-tauri/Cargo.toml', cargo);
+
+            console.log('All source versions set to ' + v);
+          "
 
       # ── Rust toolchain ───────────────────────────────────────────────────
       - name: Install Rust stable toolchain
