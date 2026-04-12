@@ -19,7 +19,8 @@
       "dmg",
       "app",
       "nsis",
-      "appimage"
+      "appimage",
+      "deb"
     ],
     "icon": [
       "icons/32x32.png",
@@ -33,6 +34,15 @@
     "shortDescription": "Cross-platform Facebook Messenger desktop client",
     "longDescription": "Messenger X is a lightweight, cross-platform desktop client for Facebook Messenger built with Tauri. It provides native desktop notifications, system tray integration, offline detection, and a clean WebView-powered interface on macOS, Windows, and Linux.",
     "linux": {
+      "deb": {
+        "depends": [
+          "libwebkit2gtk-4.1-0",
+          "libgtk-3-0",
+          "libayatana-appindicator3-1"
+        ],
+        "section": "web",
+        "priority": "optional"
+      },
       "appimage": {
         "bundleMediaFramework": false,
         "files": {}

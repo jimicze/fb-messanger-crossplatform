@@ -203,8 +203,8 @@ jobs:
           | **Windows** | ARM64 | `.exe` (NSIS) |
           | **macOS** | Apple Silicon | `.dmg` |
           | **macOS** | Intel | `.dmg` |
-          | **Linux** | x64 | `.AppImage` |
-          | **Linux** | ARM64 | `.AppImage` |
+          | **Linux** | x64 | `.deb` · `.AppImage` |
+          | **Linux** | ARM64 | `.deb` · `.AppImage` |
 
           > Auto-update is supported — existing installs will be notified automatically.
           DOWNLOADS
