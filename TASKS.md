@@ -85,12 +85,15 @@
 - **Status:** ✅ Done
 - **Description:** Tauri updater plugin integrated with signing keypair, Settings UI section, CI generates `latest.json`.
 
-### [FEAT-003] Code signing (SignPath.io + Apple notarization)
+### [FEAT-003] Code signing (SignPath Foundation + Apple notarization)
 - **Priority:** High
-- **Status:** 📋 Planned
-- **Description:** Sign release builds to eliminate OS security warnings.
-- **Windows:** SignPath.io (free for open source) for Authenticode OV code signing
-- **macOS:** Apple notarization via Xcode + Apple Developer account ($99/yr)
+- **Status:** 🔄 In Progress (čeká na external schválení)
+- **Description:** Sign release builds to eliminate OS security warnings. CI je plně připraveno — stačí přidat secrets.
+- **Windows:** SignPath Foundation (free for OSS) — aplikace podána 2026-04-12, čeká na schválení
+- **macOS:** Apple notarization — čeká na obnovu Apple Developer Program ($99/rok)
+- **Unblocks po dokončení:**
+  - BUG-003 (Windows SmartScreen)
+  - DIST-006 (homebrew/homebrew-cask) — viz níže
 - **Related:** Resolves BUG-003
 
 ### [FEAT-004] Enhanced notifications
@@ -98,13 +101,12 @@
 - **Status:** ✅ Done (v0.1.4)
 - **Description:** Platform-specific sounds, silent mode, grouping, tray click handler to focus main window.
 
-### [FEAT-005] Package manager distribution (winget, apt, brew)
+### [FEAT-005] Package manager distribution (winget, Homebrew)
 - **Priority:** Medium
-- **Status:** 📋 Planned
-- **Description:** Publish to platform-native package managers.
-- **winget:** Submit manifest to `microsoft/winget-pkgs`, automate with `vedantmgoyal9/winget-releaser`
-- **Homebrew:** Create tap `jimicze/homebrew-tap` with Cask formula pointing to `.dmg`
-- **APT:** Host PPA or use GitHub Pages as apt repo with `.deb` packages
+- **Status:** ✅ Done (v1.3.1+)
+- **Description:** Publish to platform-native package managers with CI auto-update.
+- **winget:** Initial PR submitted to `microsoft/winget-pkgs` (#358865, v1.3.5), CLA signed, awaiting merge; CI Phase 5 (`update-winget`) auto-submits PRs for each new release after merge
+- **Homebrew:** Tap `jimicze/homebrew-tap` live — `brew tap jimicze/tap && brew install --cask messenger-x`; CI Phase 4 (`update-homebrew`) auto-updates Cask formula on every release
 
 ### [FEAT-006] Notification settings
 - **Priority:** Medium
@@ -128,3 +130,136 @@
   - Settings UI: new "Startup" section with two toggles; autostart queries OS state on load
   - i18n: 3 new translation keys (en + cs)
   - Capabilities: added `autostart:default` permission
+
+---
+
+## 🚀 Distribuce
+
+### [DIST-001] Flathub (Linux Flatpak)
+- **Priority:** High
+- **Effort:** M (2–4 h)
+- **Status:** 🔄 In Progress — manifesty hotové, čeká na podání PR do flathub/flathub
+- **Description:** Publikovat Messenger X na Flathub — standardní distribuce Flatpak balíčků pro Linux.
+- **Hotovo:**
+  - `flatpak/com.lasakondrej.MessengerX.yml` — Flatpak manifest (source build, `org.gnome.Platform//46`, Rust SDK extension)
+  - `flatpak/com.lasakondrej.MessengerX.desktop` — .desktop soubor
+  - `flatpak/com.lasakondrej.MessengerX.metainfo.xml` — AppStream metainfo (Flathub vyžaduje)
+  - `flatpak/cargo-sources.json` — pre-fetchnuté Cargo závislosti (offline build, 7911 řádků)
+  - CI Phase 6 (`update-flathub`) — auto-update Flathub manifestu po každém releasu
+- **Zbývá:**
+  1. Přidat screenshot do `flatpak/screenshot-main.png` (Flathub vyžaduje alespoň jeden)
+  2. Fork `flathub/flathub` → branch `new-pr/com.lasakondrej.MessengerX`
+  3. Zkopírovat `flatpak/*.yml`, `flatpak/*.desktop`, `flatpak/*.xml`, `flatpak/cargo-sources.json` do rootu forku
+  4. Podat PR do `flathub/flathub`
+  5. Po schválení: přidat `FLATHUB_PAT` secret (fine-grained PAT, Contents R/W na `flathub/com.lasakondrej.MessengerX`)
+- **Install (po schválení):** `flatpak install flathub com.lasakondrej.MessengerX`
+- **Prerekvizity:** Screenshot nutný pro PR submission
+
+### [DIST-002] Snap Store (Ubuntu/Snapcraft)
+- **Priority:** Low
+- **Effort:** S (1–2 h)
+- **Status:** 📋 Planned
+- **Description:** Publikovat na Snap Store — předinstalovaný na Ubuntu, dostupný na dalších distribucích. Snap je alternativa k Flatpak s automatickými aktualizacemi.
+- **Kroky:**
+  1. Vytvořit `snap/snapcraft.yaml` (grade: stable, confinement: strict, base: core22)
+  2. Zaregistrovat snap název `messenger-x` na snapcraft.io
+  3. Přidat CI krok: `snapcraft pack` + `snapcraft upload` po releasu
+- **Install (po schválení):** `sudo snap install messenger-x`
+- **Prerekvizity:** Účet na snapcraft.io
+
+### [DIST-003] AUR (Arch Linux)
+- **Priority:** Low
+- **Effort:** S (1 h)
+- **Status:** 📋 Planned
+- **Description:** Publikovat AUR balíček pro Arch Linux a Arch-based distribuce (Manjaro, EndeavourOS). AUR je populární u power userů.
+- **Kroky:**
+  1. Vytvořit AUR repozitář `messenger-x-bin` (binární balíček z AppImage/tar.gz)
+  2. Napsat `PKGBUILD` stahující AppImage z GitHub Releases
+  3. Přidat CI krok: auto-update `PKGBUILD` + `.SRCINFO` po releasu (podobně jako Homebrew)
+- **Install (po schválení):** `yay -S messenger-x-bin`
+- **Prerekvizity:** AUR účet na aur.archlinux.org
+
+### [DIST-004] Microsoft Store
+- **Priority:** Low
+- **Effort:** XL (1–2 dny + čekání na review)
+- **Status:** 📋 Planned
+- **Description:** Publikovat na Microsoft Store — eliminuje SmartScreen warning pro Store verzi, velká viditelnost. Alternativa/doplněk k FEAT-003 (code signing).
+- **Kroky:**
+  1. Zaregistrovat se jako vývojář na Partner Center ($19 jednorázově)
+  2. Zabalit NSIS installer do MSIX (`msixpackagingtool` nebo `tauri bundle --target msix`)
+  3. Nakonfigurovat `tauri.conf.json`: `bundle.windows.wix` nebo `bundle.windows.nsis` + Store-specifická konfigurace
+  4. Podat aplikaci přes Partner Center, projít certifikaci
+- **Prerekvizity:** $19 Developer Account; FEAT-003 (Windows signing) doporučeno ale ne striktně nutné
+
+---
+
+## ✨ Funkce / UX
+
+### [FEAT-008] Dock badge (macOS) + taskbar overlay (Windows)
+- **Priority:** Medium
+- **Effort:** M (3–5 h)
+- **Status:** 📋 Planned
+- **Description:** Zobrazit počet nepřečtených zpráv přímo na ikoně v docku (macOS) a jako overlay badge na taskbaru (Windows). Aktuálně se unread count zobrazuje jen v tray tooltipu.
+- **macOS:** `NSApp.dockTile.badgeLabel` přes Tauri plugin nebo custom Rust kód s `objc` crate
+- **Windows:** `ITaskbarList3::SetOverlayIcon()` Win32 API — Tauri zatím nemá nativní podporu, nutný custom Rust kód přes `windows-rs` crate
+- **Linux:** Tray tooltip (žádný standardní badge API)
+- **Prerekvizity:** Žádné
+
+### [FEAT-009] Deep links (`messenger://`)
+- **Priority:** Low
+- **Effort:** S (2–3 h)
+- **Status:** 📋 Planned
+- **Description:** Registrovat `messenger://` URL schéma → kliknutí na Messenger odkaz v prohlížeči otevře/přenese focus na app.
+- **Implementace:** `tauri-plugin-deep-link` (Tauri v2 plugin); registrace URL schématu v `tauri.conf.json`; handler otevře okno + naviguje na správnou konverzaci
+- **Prerekvizity:** Žádné
+
+### [FEAT-010] Tray rychlé akce
+- **Priority:** Low
+- **Effort:** S (1–2 h)
+- **Status:** 📋 Planned
+- **Description:** Přidat kontextové akce přímo do tray menu bez nutnosti otevřít hlavní okno.
+- **Možné akce:** "Mark all as read" (JS inject do WebView), "Open last conversation"
+- **Prerekvizity:** Žádné
+
+---
+
+## 🏗️ Infrastruktura
+
+### [INFRA-001] GitHub community files
+- **Priority:** Low
+- **Effort:** XS (30 min)
+- **Status:** 📋 Planned
+- **Description:** Přidat standardní GitHub community soubory pro open-source projekt.
+- **Soubory:**
+  - `.github/ISSUE_TEMPLATE/bug_report.md`
+  - `.github/ISSUE_TEMPLATE/feature_request.md`
+  - `.github/CONTRIBUTING.md`
+  - `.github/PULL_REQUEST_TEMPLATE.md`
+- **Prerekvizity:** Žádné
+
+### [INFRA-002] AUR CI auto-update
+- **Priority:** Low
+- **Effort:** S (1–2 h)
+- **Status:** 📋 Planned
+- **Description:** CI Phase 6 nebo samostatný workflow — po každém releasu automaticky aktualizuje `PKGBUILD` v AUR repozitáři (verze + SHA256 AppImage).
+- **Prerekvizity:** DIST-003 (AUR balíček musí existovat)
+
+---
+
+## ⏳ Čeká na externí schválení
+
+| Task | Čeká na | Odhadovaný čas |
+|------|---------|----------------|
+| FEAT-003 macOS notarization | Apple Developer Program obnova ($99/rok) | — |
+| FEAT-003 Windows signing | SignPath Foundation schválení (podáno 2026-04-12) | týdny |
+| BUG-003 SmartScreen fix | FEAT-003 Windows signing | — |
+| DIST-005 winget auto-update | Merge winget PR #358865 | dny–týdny |
+| DIST-006 homebrew/homebrew-cask | FEAT-003 Apple notarization | — |
+
+### Poznámka k Homebrew
+Aktuálně je Cask v custom tapu `jimicze/homebrew-tap` — vyžaduje `brew tap jimicze/tap` před instalací.
+Po Apple notarizaci (FEAT-003) bude možné podat PR do hlavního `homebrew/homebrew-cask` repozitáře.
+Teprve pak bude app discoverable přes `brew search` a instalovatelná jedním příkazem:
+```bash
+brew install --cask messenger-x
+```
