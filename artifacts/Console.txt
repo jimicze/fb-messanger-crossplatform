@@ -1,0 +1,128 @@
+[Log] Narrow tall colored elements (12):
+Array (12)
+0
+{tag: "DIV", cls: "html-div xdj266r x14z9mp xat24cr x1lziwak xexx8yu xyri2b x1eb86dx x78zum5 x1c4vz4f x2lah0s xjqpyvm x", inlineStyle: "--x-paddingBottom: 0px; --x-paddingInlineStart: 0px;", bg: "rgb(31, 31, 31)", bgImage: "none", …}
+1
+{tag: "DIV", cls: "html-div xdj266r x14z9mp xat24cr x1lziwak xexx8yu xyri2b x1eb86dx x78zum5 x1c4vz4f x2lah0s xjqpyvm x", inlineStyle: "--x-paddingBottom: 0px; --x-paddingInlineStart: 0px;", bg: "rgb(31, 31, 31)", bgImage: "none", …}
+2
+Object
+
+bg: "rgb(31, 31, 31)"
+
+bgImage: "none"
+
+cls: "html-div xdj266r x14z9mp xat24cr x1lziwak xexx8yu xyri2b x1eb86dx x78zum5 x1c4vz4f x2lah0s xjqpyvm x"
+
+inlineStyle: "--x-paddingBottom: 0px; --x-paddingInlineStart: 0px;"
+
+rect: {x: 1359, y: -6519, w: 8, h: 195}
+
+tag: "DIV"
+
+Object Prototype
+3
+{tag: "DIV", cls: "html-div xdj266r x14z9mp xat24cr x1lziwak xexx8yu xyri2b x1eb86dx x78zum5 x1c4vz4f x2lah0s xjqpyvm x", inlineStyle: "--x-paddingBottom: 0px; --x-paddingInlineStart: 0px;", bg: "rgb(31, 31, 31)", bgImage: "none", …}
+4
+{tag: "DIV", cls: "html-div xdj266r x14z9mp xat24cr x1lziwak xexx8yu xyri2b x1eb86dx x78zum5 x1c4vz4f x2lah0s xjqpyvm x", inlineStyle: "--x-paddingBottom: 0px; --x-paddingInlineStart: 0px;", bg: "rgb(31, 31, 31)", bgImage: "none", …}
+5
+{tag: "DIV", cls: "html-div xdj266r x14z9mp xat24cr x1lziwak xexx8yu xyri2b x1eb86dx x78zum5 x1c4vz4f x2lah0s xjqpyvm x", inlineStyle: "--x-paddingBottom: 0px; --x-paddingInlineStart: 0px;", bg: "rgb(31, 31, 31)", bgImage: "none", …}
+6
+{tag: "DIV", cls: "html-div xdj266r x14z9mp xat24cr x1lziwak xexx8yu xyri2b x1eb86dx x78zum5 x1c4vz4f x2lah0s xjqpyvm x", inlineStyle: "--x-paddingBottom: 0px; --x-paddingInlineStart: 0px;", bg: "rgb(31, 31, 31)", bgImage: "none", …}
+7
+{tag: "DIV", cls: "html-div xdj266r x14z9mp xat24cr x1lziwak xexx8yu xyri2b x1eb86dx x78zum5 x1c4vz4f x2lah0s xjqpyvm x", inlineStyle: "--x-paddingBottom: 18px; --x-paddingInlineStart: 0px;", bg: "rgb(31, 31, 31)", bgImage: "none", …}
+8
+{tag: "DIV", cls: "html-div xdj266r x14z9mp xat24cr x1lziwak xexx8yu xyri2b x1eb86dx x78zum5 x1c4vz4f x2lah0s xjqpyvm x", inlineStyle: "--x-paddingBottom: 0px; --x-paddingInlineStart: 0px;", bg: "rgb(31, 31, 31)", bgImage: "none", …}
+9
+{tag: "DIV", cls: "html-div xdj266r x14z9mp xat24cr x1lziwak xexx8yu xyri2b x1eb86dx x78zum5 x1c4vz4f x2lah0s xjqpyvm x", inlineStyle: "--x-paddingBottom: 0px; --x-paddingInlineStart: 0px;", bg: "rgb(31, 31, 31)", bgImage: "none", …}
+10
+{tag: "DIV", cls: "html-div xdj266r x14z9mp xat24cr x1lziwak xexx8yu xyri2b x1eb86dx x78zum5 x1c4vz4f x2lah0s xjqpyvm x", inlineStyle: "--x-paddingBottom: 18px; --x-paddingInlineStart: 0px;", bg: "rgb(31, 31, 31)", bgImage: "none", …}
+11
+{tag: "DIV", cls: "html-div xdj266r x14z9mp xat24cr x1lziwak xexx8yu xyri2b x1eb86dx x78zum5 x1c4vz4f x2lah0s xjqpyvm x", inlineStyle: "--x-paddingBottom: 0px; --x-paddingInlineStart: 0px;", bg: "rgb(31, 31, 31)", bgImage: "none", …}
+
+Array Prototype
+
+at()
+
+concat(value, ...)
+
+constructor: function()
+
+copyWithin(targetIndex, startIndex, [endIndex=length])
+
+entries()
+
+every(callback, [thisArg])
+
+fill(value, [startIndex=0], [endIndex=length])
+
+filter(callback, [thisArg])
+
+find(callback, [thisArg])
+
+findIndex(callback, [thisArg])
+
+findLast(callback, [thisArg])
+
+findLastIndex(callback, [thisArg])
+
+flat()
+
+flatMap()
+
+forEach(callback, [thisArg])
+
+includes(searchValue, [startIndex=0])
+
+indexOf(searchValue, [startIndex=0])
+
+join([separator=","])
+
+keys()
+
+lastIndexOf(searchValue, [startIndex=length])
+
+length: 0
+
+map(callback, [thisArg])
+
+pop()
+
+push(value, ...)
+
+reduce(callback, [initialValue])
+
+reduceRight(callback, [initialValue])
+
+reverse()
+
+shift()
+
+slice([startIndex=0], [endIndex=length])
+
+some(callback, [thisArg])
+
+sort([compareFunction])
+
+splice(startIndex, [deleteCount=0], ...itemsToAdd)
+
+toLocaleString()
+
+toReversed()
+
+toSorted()
+
+toSpliced()
+
+toString()
+
+unshift()
+
+values()
+
+with()
+
+Symbol(Symbol.iterator)()
+
+Symbol(Symbol.unscopables): {at: true, copyWithin: true, entries: true, fill: true, find: true, …}
+
+Object Prototype
