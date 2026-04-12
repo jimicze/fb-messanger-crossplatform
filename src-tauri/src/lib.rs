@@ -605,6 +605,9 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         .build(app)?;
 
         // Action items
+        // On macOS "Check for updates" is placed in the app menu bar instead,
+        // so this item is only built for Windows / Linux tray menus.
+        #[cfg(not(target_os = "macos"))]
         let check_update_item = MenuItemBuilder::with_id(
             "check_update",
             &tr.settings_check_update,
@@ -624,7 +627,9 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         let sep4 = PredefinedMenuItem::separator(app)?;
 
         // --- Assemble tray menu ---
-        let tray_menu = MenuBuilder::new(app)
+        // On macOS "Check for updates" lives in the app menu bar (Messenger X →
+        // Check for updates), so it is omitted here to avoid duplication.
+        let tray_menu_builder = MenuBuilder::new(app)
             .item(&show_item)
             .item(&sep1)
             .item(&stay_logged_in_item)
@@ -635,8 +640,10 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             .item(&sep3)
             .item(&autostart_item)
             .item(&start_minimized_item)
-            .item(&sep4)
-            .item(&check_update_item)
+            .item(&sep4);
+        #[cfg(not(target_os = "macos"))]
+        let tray_menu_builder = tray_menu_builder.item(&check_update_item);
+        let tray_menu = tray_menu_builder
             .item(&logout_item)
             .item(&quit_item)
             .build()?;
@@ -906,7 +913,12 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     // ------------------------------------------------------------------
     #[cfg(target_os = "macos")]
     {
+        let check_update_app_item =
+            MenuItemBuilder::with_id("check_update", &tr.settings_check_update).build(app)?;
+
         let app_submenu = SubmenuBuilder::new(app, "Messenger X")
+            .item(&check_update_app_item)
+            .separator()
             .quit()
             .build()?;
 
@@ -925,6 +937,55 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             .build()?;
 
         app.set_menu(app_menu)?;
+
+        // Handle "Check for updates" from the app menu bar.
+        let h = app.handle().clone();
+        let tr_avail_m = tr.settings_update_available.clone();
+        let tr_none_m = tr.settings_no_update.clone();
+        let tr_err_m = tr.settings_update_error.clone();
+        app.on_menu_event(move |_app, event| {
+            if event.id().as_ref() != "check_update" {
+                return;
+            }
+            let h = h.clone();
+            let tr_avail = tr_avail_m.clone();
+            let tr_none = tr_none_m.clone();
+            let tr_err = tr_err_m.clone();
+            tauri::async_runtime::spawn(async move {
+                use tauri_plugin_updater::UpdaterExt;
+                match h.updater() {
+                    Ok(updater) => match updater.check().await {
+                        Ok(Some(update)) => {
+                            let ver = update.version.clone();
+                            let msg = tr_avail.replace("{}", &ver);
+                            let _ = services::notification::show_notification(
+                                &h, "Messenger X", &msg, "update", false,
+                            );
+                            // Auto-install blocked by Gatekeeper until notarization
+                            // is implemented (FEAT-003). Notification is sufficient.
+                            let _ = update;
+                        }
+                        Ok(None) => {
+                            let _ = services::notification::show_notification(
+                                &h, "Messenger X", &tr_none, "update", false,
+                            );
+                        }
+                        Err(e) => {
+                            log::warn!("[MessengerX] Update check failed: {e}");
+                            let _ = services::notification::show_notification(
+                                &h, "Messenger X", &tr_err, "update", false,
+                            );
+                        }
+                    },
+                    Err(e) => {
+                        log::warn!("[MessengerX] Updater init failed: {e}");
+                        let _ = services::notification::show_notification(
+                            &h, "Messenger X", &tr_err, "update", false,
+                        );
+                    }
+                }
+            });
+        });
     }
 
     // ------------------------------------------------------------------
