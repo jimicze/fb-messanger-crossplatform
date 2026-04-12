@@ -85,6 +85,8 @@ pub struct Translations {
     pub settings_autostart: String,
     /// "Start minimized" toggle label.
     pub settings_start_minimized: String,
+    /// "View Logs" menu item label (opens log file for GitHub issue reporting).
+    pub settings_view_logs: String,
 }
 
 /// Returns the translation strings for the given locale code.
@@ -117,6 +119,7 @@ fn english() -> Translations {
         settings_notification_sound: "Notification sound".to_string(),
         settings_autostart: "Start at login".to_string(),
         settings_start_minimized: "Start minimized to tray".to_string(),
+        settings_view_logs: "View Logs\u{2026}".to_string(),
     }
 }
 
@@ -142,6 +145,7 @@ fn czech() -> Translations {
         settings_notification_sound: "Zvuk ozn\u{00e1}men\u{00ed}".to_string(),
         settings_autostart: "Spustit p\u{0159}i p\u{0159}ihl\u{00e1}\u{0161}en\u{00ed}".to_string(),
         settings_start_minimized: "Spustit minimalizovan\u{011b}".to_string(),
+        settings_view_logs: "Zobrazit logy\u{2026}".to_string(),
     }
 }
 
@@ -206,6 +210,7 @@ mod tests {
                 &t.settings_notification_sound,
                 &t.settings_autostart,
                 &t.settings_start_minimized,
+                &t.settings_view_logs,
             ];
             for (i, field) in fields.iter().enumerate() {
                 assert!(

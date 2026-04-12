@@ -303,6 +303,17 @@ const SNAPSHOT_TRIGGER_SCRIPT: &str = r#"
 /// periodic snapshot timer.
 pub fn run() {
     tauri::Builder::default()
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .target(tauri_plugin_log::Target::new(
+                    tauri_plugin_log::TargetKind::LogDir {
+                        file_name: Some("messengerx".to_string()),
+                    },
+                ))
+                .max_file_size(500_000)
+                .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepOne)
+                .build(),
+        )
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_window_state::Builder::new().build())
@@ -647,6 +658,9 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         )
         .build(app)?;
 
+        let view_logs_item =
+            MenuItemBuilder::with_id("view_logs", &tr.settings_view_logs).build(app)?;
+
         let logout_item =
             MenuItemBuilder::with_id("logout", &tr.settings_logout).build(app)?;
 
@@ -659,6 +673,7 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         let sep3 = PredefinedMenuItem::separator(app)?;
         let sep4 = PredefinedMenuItem::separator(app)?;
         let sep5 = PredefinedMenuItem::separator(app)?;
+        let sep6 = PredefinedMenuItem::separator(app)?;
 
         // --- Assemble tray menu ---
         let tray_menu = MenuBuilder::new(app)
@@ -674,8 +689,10 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             .item(&start_minimized_item)
             .item(&sep4)
             .item(&check_update_item)
+            .item(&view_logs_item)
             .item(&sep5)
             .item(&logout_item)
+            .item(&sep6)
             .item(&quit_item)
             .build()?;
 
@@ -878,6 +895,26 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                         });
                     }
 
+                    // ---- View Logs ----
+                    "view_logs" => {
+                        use tauri_plugin_opener::OpenerExt;
+                        if let Ok(log_dir) = handle.path().app_log_dir() {
+                            let log_file = log_dir.join("messengerx.log");
+                            if log_file.exists() {
+                                let _ = handle.opener().open_path(
+                                    log_file.to_string_lossy().into_owned(),
+                                    None::<&str>,
+                                );
+                            } else {
+                                let _ = std::fs::create_dir_all(&log_dir);
+                                let _ = handle.opener().open_path(
+                                    log_dir.to_string_lossy().into_owned(),
+                                    None::<&str>,
+                                );
+                            }
+                        }
+                    }
+
                     // ---- Log out & clear data ----
                     "logout" => {
                         let _ = services::cache::clear_snapshots(handle);
@@ -1016,6 +1053,9 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         let check_update_item =
             MenuItemBuilder::with_id("check_update", &tr.settings_check_update).build(app)?;
 
+        let view_logs_item =
+            MenuItemBuilder::with_id("view_logs", &tr.settings_view_logs).build(app)?;
+
         let logout_item =
             MenuItemBuilder::with_id("logout", &tr.settings_logout).build(app)?;
 
@@ -1041,6 +1081,7 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             .item(&start_minimized_item)
             .item(&sep4)
             .item(&check_update_item)
+            .item(&view_logs_item)
             .item(&sep5)
             .item(&logout_item)
             .item(&sep6)
@@ -1201,6 +1242,26 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                             }
                         }
                     });
+                }
+
+                // ---- View Logs ----
+                "view_logs" => {
+                    use tauri_plugin_opener::OpenerExt;
+                    if let Ok(log_dir) = h.path().app_log_dir() {
+                        let log_file = log_dir.join("messengerx.log");
+                        if log_file.exists() {
+                            let _ = h.opener().open_path(
+                                log_file.to_string_lossy().into_owned(),
+                                None::<&str>,
+                            );
+                        } else {
+                            let _ = std::fs::create_dir_all(&log_dir);
+                            let _ = h.opener().open_path(
+                                log_dir.to_string_lossy().into_owned(),
+                                None::<&str>,
+                            );
+                        }
+                    }
                 }
 
                 // ---- Log out & clear data ----
