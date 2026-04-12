@@ -31,7 +31,10 @@ pub fn detect_locale() -> String {
 ///
 /// Each field corresponds to a user-visible string in the native UI
 /// (tray, loading screen, offline banner, settings window, etc.).
+/// Some fields are only used on specific platforms (e.g. tray fields on
+/// Windows / Linux, `settings_update_ready` only when auto-install runs).
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct Translations {
     // Tray
     /// Default tray tooltip (no unread messages).

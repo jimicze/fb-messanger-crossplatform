@@ -522,10 +522,11 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // ------------------------------------------------------------------
-    // 6. System tray icon with context menu.
-    //    All settings are now inline CheckMenuItems instead of a separate
-    //    settings window.
+    // 6. System tray icon with context menu (Windows / Linux only).
+    //    On macOS the tray icon is omitted — all settings live in the
+    //    native app menu bar instead (see section 6b below).
     // ------------------------------------------------------------------
+    #[cfg(not(target_os = "macos"))]
     if let Some(icon) = app.default_window_icon() {
         use tauri::menu::CheckMenuItemBuilder;
 
@@ -605,9 +606,6 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         .build(app)?;
 
         // Action items
-        // On macOS "Check for updates" is placed in the app menu bar instead,
-        // so this item is only built for Windows / Linux tray menus.
-        #[cfg(not(target_os = "macos"))]
         let check_update_item = MenuItemBuilder::with_id(
             "check_update",
             &tr.settings_check_update,
@@ -625,11 +623,10 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         let sep2 = PredefinedMenuItem::separator(app)?;
         let sep3 = PredefinedMenuItem::separator(app)?;
         let sep4 = PredefinedMenuItem::separator(app)?;
+        let sep5 = PredefinedMenuItem::separator(app)?;
 
         // --- Assemble tray menu ---
-        // On macOS "Check for updates" lives in the app menu bar (Messenger X →
-        // Check for updates), so it is omitted here to avoid duplication.
-        let tray_menu_builder = MenuBuilder::new(app)
+        let tray_menu = MenuBuilder::new(app)
             .item(&show_item)
             .item(&sep1)
             .item(&stay_logged_in_item)
@@ -640,10 +637,9 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             .item(&sep3)
             .item(&autostart_item)
             .item(&start_minimized_item)
-            .item(&sep4);
-        #[cfg(not(target_os = "macos"))]
-        let tray_menu_builder = tray_menu_builder.item(&check_update_item);
-        let tray_menu = tray_menu_builder
+            .item(&sep4)
+            .item(&check_update_item)
+            .item(&sep5)
             .item(&logout_item)
             .item(&quit_item)
             .build()?;
@@ -793,10 +789,6 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                                         let _ = services::notification::show_notification(
                                             &h, "Messenger X", &msg, "update", false,
                                         );
-                                        // macOS: auto-install blocked by Gatekeeper until
-                                        // the app is notarized (FEAT-003). Skip install
-                                        // to avoid a misleading "Update check failed" error.
-                                        #[cfg(not(target_os = "macos"))]
                                         match update
                                             .download_and_install(|_, _| {}, || {})
                                             .await
@@ -826,9 +818,6 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                                                     );
                                             }
                                         }
-                                        // Suppress unused-variable warning on macOS.
-                                        #[cfg(target_os = "macos")]
-                                        let _ = (tr_ready, tr_err);
                                     }
                                     Ok(None) => {
                                         let _ = services::notification::show_notification(
@@ -908,17 +897,118 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // ------------------------------------------------------------------
-    // 6b. macOS application menu bar (Edit menu for clipboard shortcuts,
-    //     Quit via Cmd+Q).  Settings are now in the tray context menu.
+    // 6b. macOS application menu bar — full settings menu.
+    //     All items that would be in the tray on Windows / Linux are
+    //     placed here instead.  No tray icon is used on macOS.
     // ------------------------------------------------------------------
     #[cfg(target_os = "macos")]
     {
-        let check_update_app_item =
+        use tauri::menu::CheckMenuItemBuilder;
+
+        // Load current autostart state from the OS (may differ from saved).
+        let autostart_checked = {
+            use tauri_plugin_autostart::ManagerExt;
+            app.autolaunch()
+                .is_enabled()
+                .unwrap_or(settings.autostart)
+        };
+
+        // --- Build all menu items ---
+
+        let show_item =
+            MenuItemBuilder::with_id("tray_show", &tr.tray_show).build(app)?;
+
+        let stay_logged_in_item = CheckMenuItemBuilder::with_id(
+            "stay_logged_in",
+            &tr.settings_stay_logged_in,
+        )
+        .checked(settings.stay_logged_in)
+        .build(app)?;
+
+        let notifications_item = CheckMenuItemBuilder::with_id(
+            "notifications_enabled",
+            &tr.settings_notifications_enabled,
+        )
+        .checked(settings.notifications_enabled)
+        .build(app)?;
+
+        let notification_sound_item = CheckMenuItemBuilder::with_id(
+            "notification_sound",
+            &tr.settings_notification_sound,
+        )
+        .checked(settings.notification_sound)
+        .build(app)?;
+
+        // Zoom submenu with radio-like CheckMenuItems (60%–120%)
+        let zoom_levels: &[(u32, &str)] = &[
+            (60, "60%"),
+            (70, "70%"),
+            (80, "80%"),
+            (90, "90%"),
+            (100, "100%"),
+            (110, "110%"),
+            (120, "120%"),
+        ];
+        let current_zoom_pct = (settings.zoom_level * 100.0).round() as u32;
+        let mut zoom_checks: Vec<tauri::menu::CheckMenuItem<tauri::Wry>> = Vec::new();
+        for &(pct, label) in zoom_levels {
+            let item = CheckMenuItemBuilder::with_id(format!("zoom_{pct}"), label)
+                .checked(pct == current_zoom_pct)
+                .build(app)?;
+            zoom_checks.push(item);
+        }
+
+        let mut zoom_builder = SubmenuBuilder::new(app, &tr.settings_zoom_level);
+        for item in &zoom_checks {
+            zoom_builder = zoom_builder.item(item);
+        }
+        let zoom_submenu = zoom_builder.build()?;
+
+        let autostart_item = CheckMenuItemBuilder::with_id(
+            "autostart",
+            &tr.settings_autostart,
+        )
+        .checked(autostart_checked)
+        .build(app)?;
+
+        let start_minimized_item = CheckMenuItemBuilder::with_id(
+            "start_minimized",
+            &tr.settings_start_minimized,
+        )
+        .checked(settings.start_minimized)
+        .build(app)?;
+
+        let check_update_item =
             MenuItemBuilder::with_id("check_update", &tr.settings_check_update).build(app)?;
 
+        let logout_item =
+            MenuItemBuilder::with_id("logout", &tr.settings_logout).build(app)?;
+
+        // --- Separators ---
+        let sep1 = PredefinedMenuItem::separator(app)?;
+        let sep2 = PredefinedMenuItem::separator(app)?;
+        let sep3 = PredefinedMenuItem::separator(app)?;
+        let sep4 = PredefinedMenuItem::separator(app)?;
+        let sep5 = PredefinedMenuItem::separator(app)?;
+        let sep6 = PredefinedMenuItem::separator(app)?;
+
+        // --- Assemble app submenu ---
         let app_submenu = SubmenuBuilder::new(app, "Messenger X")
-            .item(&check_update_app_item)
-            .separator()
+            .item(&show_item)
+            .item(&sep1)
+            .item(&stay_logged_in_item)
+            .item(&notifications_item)
+            .item(&notification_sound_item)
+            .item(&sep2)
+            .item(&zoom_submenu)
+            .item(&sep3)
+            .item(&autostart_item)
+            .item(&start_minimized_item)
+            .item(&sep4)
+            .item(&check_update_item)
+            .item(&sep5)
+            .item(&logout_item)
+            .item(&sep6)
             .quit()
             .build()?;
 
@@ -938,53 +1028,185 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
         app.set_menu(app_menu)?;
 
-        // Handle "Check for updates" from the app menu bar.
+        // --- Clone items for the menu-event closure ---
         let h = app.handle().clone();
-        let tr_avail_m = tr.settings_update_available.clone();
-        let tr_none_m = tr.settings_no_update.clone();
-        let tr_err_m = tr.settings_update_error.clone();
+        let stay_logged_in_c = stay_logged_in_item.clone();
+        let notifications_c = notifications_item.clone();
+        let notification_sound_c = notification_sound_item.clone();
+        let autostart_c = autostart_item.clone();
+        let start_minimized_c = start_minimized_item.clone();
+        let zoom_checks_c = zoom_checks.clone();
+
+        // Translated strings for update-check notifications.
+        let tr_update_available = tr.settings_update_available.clone();
+        let tr_no_update = tr.settings_no_update.clone();
+        let tr_update_error = tr.settings_update_error.clone();
+
         app.on_menu_event(move |_app, event| {
-            if event.id().as_ref() != "check_update" {
-                return;
-            }
-            let h = h.clone();
-            let tr_avail = tr_avail_m.clone();
-            let tr_none = tr_none_m.clone();
-            let tr_err = tr_err_m.clone();
-            tauri::async_runtime::spawn(async move {
-                use tauri_plugin_updater::UpdaterExt;
-                match h.updater() {
-                    Ok(updater) => match updater.check().await {
-                        Ok(Some(update)) => {
-                            let ver = update.version.clone();
-                            let msg = tr_avail.replace("{}", &ver);
-                            let _ = services::notification::show_notification(
-                                &h, "Messenger X", &msg, "update", false,
-                            );
-                            // Auto-install blocked by Gatekeeper until notarization
-                            // is implemented (FEAT-003). Notification is sufficient.
-                            let _ = update;
-                        }
-                        Ok(None) => {
-                            let _ = services::notification::show_notification(
-                                &h, "Messenger X", &tr_none, "update", false,
-                            );
-                        }
-                        Err(e) => {
-                            log::warn!("[MessengerX] Update check failed: {e}");
-                            let _ = services::notification::show_notification(
-                                &h, "Messenger X", &tr_err, "update", false,
-                            );
-                        }
-                    },
-                    Err(e) => {
-                        log::warn!("[MessengerX] Updater init failed: {e}");
-                        let _ = services::notification::show_notification(
-                            &h, "Messenger X", &tr_err, "update", false,
-                        );
+            let id = event.id().as_ref();
+
+            match id {
+                // ---- Show window ----
+                "tray_show" => {
+                    if let Some(window) = h.get_webview_window("main") {
+                        let _ = window.show();
+                        let _ = window.unminimize();
+                        let _ = window.set_focus();
                     }
                 }
-            });
+
+                // ---- Toggle: stay logged in ----
+                "stay_logged_in" => {
+                    if let Ok(checked) = stay_logged_in_c.is_checked() {
+                        let mut s = services::auth::load_settings(&h).unwrap_or_default();
+                        s.stay_logged_in = checked;
+                        let _ = services::auth::save_settings(&h, &s);
+                    }
+                }
+
+                // ---- Toggle: notifications enabled ----
+                "notifications_enabled" => {
+                    if let Ok(checked) = notifications_c.is_checked() {
+                        let mut s = services::auth::load_settings(&h).unwrap_or_default();
+                        s.notifications_enabled = checked;
+                        let _ = services::auth::save_settings(&h, &s);
+                    }
+                }
+
+                // ---- Toggle: notification sound ----
+                "notification_sound" => {
+                    if let Ok(checked) = notification_sound_c.is_checked() {
+                        let mut s = services::auth::load_settings(&h).unwrap_or_default();
+                        s.notification_sound = checked;
+                        let _ = services::auth::save_settings(&h, &s);
+                    }
+                }
+
+                // ---- Toggle: autostart ----
+                "autostart" => {
+                    if let Ok(checked) = autostart_c.is_checked() {
+                        use tauri_plugin_autostart::ManagerExt;
+                        let autolaunch = h.autolaunch();
+                        if checked {
+                            let _ = autolaunch.enable();
+                        } else {
+                            let _ = autolaunch.disable();
+                        }
+                        let mut s = services::auth::load_settings(&h).unwrap_or_default();
+                        s.autostart = checked;
+                        let _ = services::auth::save_settings(&h, &s);
+                    }
+                }
+
+                // ---- Toggle: start minimized ----
+                "start_minimized" => {
+                    if let Ok(checked) = start_minimized_c.is_checked() {
+                        let mut s = services::auth::load_settings(&h).unwrap_or_default();
+                        s.start_minimized = checked;
+                        let _ = services::auth::save_settings(&h, &s);
+                    }
+                }
+
+                // ---- Zoom (radio-like behaviour) ----
+                _ if id.starts_with("zoom_") => {
+                    if let Ok(pct) = id[5..].parse::<u32>() {
+                        let level = pct as f64 / 100.0;
+                        // Enforce radio: uncheck all, check selected.
+                        for zitem in &zoom_checks_c {
+                            let _ = zitem.set_checked(zitem.id().as_ref() == id);
+                        }
+                        // Apply native zoom.
+                        if let Some(wv) = h.get_webview_window("main") {
+                            let _ = wv.set_zoom(level);
+                        }
+                        // Persist.
+                        let mut s = services::auth::load_settings(&h).unwrap_or_default();
+                        s.zoom_level = level;
+                        let _ = services::auth::save_settings(&h, &s);
+                    }
+                }
+
+                // ---- Check for updates ----
+                "check_update" => {
+                    let h2 = h.clone();
+                    let tr_avail = tr_update_available.clone();
+                    let tr_none = tr_no_update.clone();
+                    let tr_err = tr_update_error.clone();
+                    tauri::async_runtime::spawn(async move {
+                        use tauri_plugin_updater::UpdaterExt;
+                        match h2.updater() {
+                            Ok(updater) => match updater.check().await {
+                                Ok(Some(update)) => {
+                                    let ver = update.version.clone();
+                                    let msg = tr_avail.replace("{}", &ver);
+                                    let _ = services::notification::show_notification(
+                                        &h2, "Messenger X", &msg, "update", false,
+                                    );
+                                    // Auto-install blocked by Gatekeeper until notarization
+                                    // is implemented (FEAT-003). Notification is sufficient.
+                                    let _ = update;
+                                }
+                                Ok(None) => {
+                                    let _ = services::notification::show_notification(
+                                        &h2, "Messenger X", &tr_none, "update", false,
+                                    );
+                                }
+                                Err(e) => {
+                                    log::warn!("[MessengerX] Update check failed: {e}");
+                                    let _ = services::notification::show_notification(
+                                        &h2, "Messenger X", &tr_err, "update", false,
+                                    );
+                                }
+                            },
+                            Err(e) => {
+                                log::warn!("[MessengerX] Updater init failed: {e}");
+                                let _ = services::notification::show_notification(
+                                    &h2, "Messenger X", &tr_err, "update", false,
+                                );
+                            }
+                        }
+                    });
+                }
+
+                // ---- Log out & clear data ----
+                "logout" => {
+                    let _ = services::cache::clear_snapshots(&h);
+                    let defaults = commands::AppSettings::default();
+                    let _ = services::auth::save_settings(&h, &defaults);
+
+                    // Reset all checkbox states to defaults.
+                    let _ = stay_logged_in_c.set_checked(defaults.stay_logged_in);
+                    let _ = notifications_c.set_checked(defaults.notifications_enabled);
+                    let _ = notification_sound_c.set_checked(defaults.notification_sound);
+                    let _ = start_minimized_c.set_checked(defaults.start_minimized);
+
+                    // Reset zoom to 100 %.
+                    for zitem in &zoom_checks_c {
+                        let _ = zitem.set_checked(zitem.id().as_ref() == "zoom_100");
+                    }
+                    if let Some(wv) = h.get_webview_window("main") {
+                        let _ = wv.set_zoom(1.0);
+                    }
+
+                    // Disable autostart.
+                    {
+                        use tauri_plugin_autostart::ManagerExt;
+                        let _ = h.autolaunch().disable();
+                    }
+                    let _ = autostart_c.set_checked(false);
+
+                    // Navigate to messenger.com to clear session/cookies.
+                    if let Some(wv) = h.get_webview_window("main") {
+                        let _ = wv.eval(
+                            "window.location.href = 'https://www.messenger.com';",
+                        );
+                        let _ = wv.show();
+                        let _ = wv.set_focus();
+                    }
+                }
+
+                _ => {}
+            }
         });
     }
 
