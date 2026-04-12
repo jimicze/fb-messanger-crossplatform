@@ -161,14 +161,19 @@ jobs:
           FIXES=""
           OTHER=""
 
+          # Store regex in variables — avoids bash [[ =~ ]] parser misreading
+          # the ']' inside '[^)]' as the closing ']]' of the conditional.
+          FEAT_RE='^feat(\([^)]*\))?!?:[[:space:]](.+)$'
+          FIX_RE='^fix(\([^)]*\))?!?:[[:space:]](.+)$'
+
           while IFS= read -r msg; do
             [[ -z "$msg" ]] && continue
             # Skip CI-generated version bump commits.
             [[ "$msg" == "chore: bump version to"* ]] && continue
 
-            if [[ "$msg" =~ ^feat(\([^)]*\))?!?:[[:space:]](.+)$ ]]; then
+            if [[ "$msg" =~ $FEAT_RE ]]; then
               FEATURES+="- ${BASH_REMATCH[2]}"$'\n'
-            elif [[ "$msg" =~ ^fix(\([^)]*\))?!?:[[:space:]](.+)$ ]]; then
+            elif [[ "$msg" =~ $FIX_RE ]]; then
               FIXES+="- ${BASH_REMATCH[2]}"$'\n'
             else
               OTHER+="- ${msg}"$'\n'
