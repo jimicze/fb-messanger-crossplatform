@@ -148,6 +148,132 @@ fn build_offline_banner_script(banner_text: &str) -> String {
     )
 }
 
+/// Builds the scrollbar fix injection script with platform-specific behaviour.
+///
+/// **Root cause (discovered after 6 failed CSS attempts):**
+/// The coloured strip in the Messenger chat area is NOT a scrollbar at all.
+/// It is the `background: linear-gradient(…)` of the chat-theme container
+/// (857 × 382 px) showing through the *transparent* macOS WKWebView overlay
+/// scrollbar area.  Because the overlay scrollbar floats over content without
+/// its own opaque track, any container background bleeds through.
+///
+/// `scrollbar-color` / `accent-color` CSS had zero effect because the colour
+/// was never coming from a scrollbar property to begin with.
+///
+/// **Fix on macOS:** `scrollbar-width: none !important` hides the native
+/// overlay scrollbar entirely, eliminating the transparent strip where the
+/// gradient was visible.  Messenger's own custom div-based scrollbars (left
+/// chat-list panel) are unaffected — they are ordinary `<div>` elements, not
+/// native scrollbars.  Trackpad / scroll-wheel navigation continues to work.
+///
+/// **Fix on Windows / Linux:** Custom `::-webkit-scrollbar` rules replace the
+/// default scrollbar rendering with a neutral grey style.  `scrollbar-width`
+/// is intentionally NOT set to none on these platforms because persistent
+/// scrollbars are part of the expected UI on those OSes.
+fn build_scrollbar_fix_script(is_macos: bool) -> String {
+    // On macOS: hide the native overlay scrollbar so it cannot reveal the
+    // gradient chat-theme background behind it.
+    // On other platforms: keep the scrollbar but style it neutral grey.
+    let scrollbar_width_rule = if is_macos {
+        "scrollbar-width: none !important;"
+    } else {
+        "scrollbar-color: rgba(128,128,128,0.5) transparent !important;"
+    };
+
+    format!(
+        r#"(function() {{
+    var STYLE_ID = '__messengerx_scrollbar_fix__';
+
+    function createStyle() {{
+        var style = document.createElement('style');
+        style.id = STYLE_ID;
+        style.textContent = `
+            /* MessengerX — scrollbar fix.
+             *
+             * macOS: scrollbar-width:none hides the transparent overlay
+             *   scrollbar so the chat-theme gradient behind it is invisible.
+             * Win/Linux: neutral grey scrollbar-color instead of theme accent.
+             * Specificity 2,0,0 beats any Messenger class selector chain.
+             */
+            *:not(#__msrx__):not(#__msrx__),
+            *:not(#__msrx__):not(#__msrx__)::before,
+            *:not(#__msrx__):not(#__msrx__)::after {{
+                {scrollbar_width_rule}
+            }}
+
+            /* Chromium-based WebViews (Windows WebView2, Linux WebKitGTK). */
+            ::-webkit-scrollbar {{ width: 8px; height: 8px; }}
+            ::-webkit-scrollbar-track {{ background: transparent !important; }}
+            ::-webkit-scrollbar-thumb {{
+                background: rgba(128, 128, 128, 0.45) !important;
+                border-radius: 4px;
+            }}
+            ::-webkit-scrollbar-thumb:hover {{
+                background: rgba(128, 128, 128, 0.65) !important;
+            }}
+            ::-webkit-scrollbar-corner {{ background: transparent !important; }}
+        `;
+        return style;
+    }}
+
+    function ensureStyleLast() {{
+        var parent = document.head || document.documentElement;
+        var existing = document.getElementById(STYLE_ID);
+        if (existing) {{
+            if (existing !== parent.lastElementChild) {{
+                parent.appendChild(existing);
+            }}
+        }} else {{
+            parent.appendChild(createStyle());
+        }}
+    }}
+
+    function setup() {{
+        ensureStyleLast();
+
+        /* Re-append whenever Messenger lazily loads new stylesheets. */
+        new MutationObserver(function(mutations) {{
+            for (var i = 0; i < mutations.length; i++) {{
+                var added = mutations[i].addedNodes;
+                for (var j = 0; j < added.length; j++) {{
+                    var n = added[j];
+                    if (n.nodeType === 1 && n.id !== STYLE_ID) {{
+                        var tag = n.tagName;
+                        if (tag === 'STYLE' || tag === 'LINK') {{
+                            ensureStyleLast();
+                            return;
+                        }}
+                    }}
+                }}
+            }}
+        }}).observe(document.head || document.documentElement, {{ childList: true }});
+
+        /* Sync color-scheme with Messenger dark/light mode so native
+         * controls (e.g. input fields) use the correct contrast. */
+        function syncColorScheme() {{
+            var isDark = !!document.querySelector('.__fb-dark-mode');
+            document.documentElement.style.setProperty(
+                'color-scheme', isDark ? 'dark' : 'light', 'important'
+            );
+        }}
+        syncColorScheme();
+        new MutationObserver(syncColorScheme).observe(
+            document.body || document.documentElement,
+            {{ attributes: true, subtree: true, attributeFilter: ['class'] }}
+        );
+    }}
+
+    if (document.readyState === 'loading') {{
+        document.addEventListener('DOMContentLoaded', setup);
+    }} else {{
+        setup();
+    }}
+}})();
+"#,
+        scrollbar_width_rule = scrollbar_width_rule
+    )
+}
+
 /// JavaScript snippet that triggers snapshot capture and forwards the HTML to
 /// Rust via `invoke('save_snapshot', …)`.  Called from the Rust snapshot timer.
 ///
@@ -263,6 +389,12 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         WebviewUrl::App("index.html".into())
     };
 
+    // Build the scrollbar-fix script with platform-specific behaviour.
+    // On macOS the native overlay scrollbar is hidden (scrollbar-width:none)
+    // because the transparent scrollbar track was revealing the chat-theme
+    // gradient behind it. On other platforms we use custom webkit-scrollbar.
+    let scrollbar_fix_script = build_scrollbar_fix_script(cfg!(target_os = "macos"));
+
     // ------------------------------------------------------------------
     // 4. Build the main window programmatically.
     // ------------------------------------------------------------------
@@ -278,6 +410,7 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         .initialization_script(OFFLINE_DIALOG_HIDER_SCRIPT)
         .initialization_script(&offline_banner_script)
         .initialization_script(&zoom_init_script)
+        .initialization_script(&scrollbar_fix_script)
         // Spoof a desktop Chrome UA so Messenger serves its full web-app.
         .user_agent(
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) \
