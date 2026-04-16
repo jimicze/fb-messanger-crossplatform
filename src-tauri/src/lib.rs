@@ -279,14 +279,21 @@ fn build_scrollbar_fix_script(is_macos: bool) -> String {
 /// for external URLs rather than navigating the main frame, so the Tauri
 /// `on_navigation` callback never fires for those.
 ///
-/// For any non-messenger/facebook URL this script calls
-/// `invoke('open_external', …)` to open the link in the system browser.
-/// All calls are logged to the browser console for debugging.
+/// Also installs a capture-phase `click` listener on `document` as a fallback
+/// for external `<a href>` links that Messenger doesn't route through
+/// `window.open()` (e.g. direct anchor tags in chat).
+///
+/// All debug messages are forwarded to the Rust log file via `js_log` so they
+/// are visible in `messengerx.log` (not just in the WebKit inspector).
 ///
 /// Injected **at document-start** (before the page HTML is parsed).
 const WINDOW_OPEN_OVERRIDE_SCRIPT: &str = r#"
 (function() {
     const ALLOWED_DOMAINS = ['messenger.com', 'facebook.com', 'fbcdn.net', 'fbsbx.com'];
+
+    function jlog(msg) {
+        try { window.__TAURI__.core.invoke('js_log', { message: msg }); } catch(_) {}
+    }
 
     function isAllowedUrl(url) {
         try {
@@ -299,26 +306,57 @@ const WINDOW_OPEN_OVERRIDE_SCRIPT: &str = r#"
         }
     }
 
+    function openExternal(urlStr) {
+        jlog('External URL — routing to system browser: ' + urlStr);
+        try {
+            window.__TAURI__.core.invoke('open_external', { url: urlStr });
+        } catch(e) {
+            jlog('Failed to open external URL via invoke: ' + e);
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // 1. window.open() override
+    // -----------------------------------------------------------------------
     var _originalOpen = window.open;
     window.open = function(url, target, features) {
         var urlStr = url ? String(url) : '';
-        console.log('[MessengerX] window.open intercepted: url=' + urlStr + ' target=' + target);
+        jlog('window.open intercepted: url=' + urlStr + ' target=' + target);
 
         if (urlStr && (urlStr.startsWith('http://') || urlStr.startsWith('https://'))) {
             if (!isAllowedUrl(urlStr)) {
-                console.log('[MessengerX] External URL — routing to system browser: ' + urlStr);
-                try {
-                    window.__TAURI__.core.invoke('open_external', { url: urlStr });
-                } catch(e) {
-                    console.error('[MessengerX] Failed to open external URL via invoke:', e);
-                }
+                openExternal(urlStr);
                 return null;
             }
         }
         return _originalOpen.call(this, url, target, features);
     };
 
-    console.log('[MessengerX] window.open override installed');
+    // -----------------------------------------------------------------------
+    // 2. Capture-phase <a href> click interceptor (fallback for anchor tags)
+    // -----------------------------------------------------------------------
+    document.addEventListener('click', function(e) {
+        var el = e.target;
+        // Walk up the DOM to find the nearest <a> ancestor.
+        while (el && el.tagName !== 'A') { el = el.parentElement; }
+        if (!el) return;
+        var href = el.getAttribute('href');
+        if (!href) return;
+
+        // Resolve to absolute URL.
+        var urlStr;
+        try { urlStr = new URL(href, window.location.href).toString(); } catch(_) { return; }
+        jlog('click interceptor: href=' + urlStr);
+
+        if (!urlStr.startsWith('http://') && !urlStr.startsWith('https://')) return;
+        if (isAllowedUrl(urlStr)) return; // allowed — let Tauri handle it
+
+        e.preventDefault();
+        e.stopPropagation();
+        openExternal(urlStr);
+    }, true /* capture phase */);
+
+    jlog('window.open override + click interceptor installed');
 })();
 "#;
 
@@ -411,6 +449,7 @@ pub fn run() {
             commands::install_update,
             commands::set_autostart,
             commands::is_autostart_enabled,
+            commands::js_log,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
@@ -525,6 +564,34 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             }
 
             let host = url.host_str().unwrap_or("");
+            log::info!("[MessengerX] on_navigation: host={host} url={url}");
+
+            // Handle Facebook's link shim: l.facebook.com/l.php?u=EXTERNAL_URL
+            // Messenger wraps all external links in this shim — so `on_navigation`
+            // sees a facebook.com URL instead of the real destination.  We extract
+            // the actual URL from the `u` query param and open it in the system browser.
+            if (host == "l.facebook.com" || host == "l.messenger.com")
+                && url.path() == "/l.php"
+            {
+                if let Some(actual_url) = url
+                    .query_pairs()
+                    .find(|(k, _)| k == "u")
+                    .map(|(_, v)| v.into_owned())
+                {
+                    log::info!("[MessengerX] Link shim detected — opening real URL: {actual_url}");
+                    let handle = nav_app_handle.clone();
+                    std::thread::spawn(move || {
+                        use tauri_plugin_opener::OpenerExt;
+                        if let Err(e) = handle.opener().open_url(&actual_url, None::<&str>) {
+                            log::warn!(
+                                "[MessengerX] Failed to open link-shim URL {actual_url}: {e}"
+                            );
+                        }
+                    });
+                    return false;
+                }
+            }
+
             const ALLOWED: &[&str] = &["messenger.com", "facebook.com", "fbcdn.net", "fbsbx.com"];
             let is_allowed = ALLOWED
                 .iter()

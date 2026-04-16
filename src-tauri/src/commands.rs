@@ -236,6 +236,15 @@ pub async fn install_update(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+/// Log a message from the WebView JavaScript context to the Rust log file.
+///
+/// This allows JS debug output to appear in `messengerx.log` via `log::info!`,
+/// since `console.log` only goes to the WebKit inspector and never to the file.
+#[tauri::command]
+pub fn js_log(message: String) {
+    log::info!("[MessengerX][JS] {}", message);
+}
+
 /// Enable or disable auto-start at system login.
 ///
 /// Wraps the autostart plugin so the settings window can call it via `invoke`.
