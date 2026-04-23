@@ -52,7 +52,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Bump version, commit and push tag
         id: bump
@@ -124,7 +124,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 0   # full history + all tags for git log
 
@@ -217,7 +217,7 @@ jobs:
 
       - name: Create GitHub Release
         id: create
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           tag_name: ${{ steps.resolve-tag.outputs.name }}
           name: 'Messenger X ${{ steps.resolve-tag.outputs.name }}'
@@ -278,7 +278,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           # Always build from the exact release tag (works for both trigger paths).
           ref: ${{ needs.create-release.outputs.tag-name }}
@@ -301,7 +301,7 @@ jobs:
 
       # ── Node.js ──────────────────────────────────────────────────────────
       - name: Set up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: 'lts/*'
           cache: 'npm'
@@ -340,12 +340,12 @@ jobs:
 
       # ── Rust toolchain ───────────────────────────────────────────────────
       - name: Install Rust stable toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9 # stable
         with:
           targets: ${{ matrix.rust-targets }}
 
       - name: Cache Rust build artifacts
-        uses: swatinem/rust-cache@v2
+        uses: swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           workspaces: './src-tauri -> target'
           key: ${{ matrix.label }}
@@ -463,7 +463,7 @@ jobs:
 
       # ── Build & Upload ───────────────────────────────────────────────────
       - name: Build Tauri app and upload release assets
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
