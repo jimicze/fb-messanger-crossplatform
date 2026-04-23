@@ -388,6 +388,37 @@ const SNAPSHOT_TRIGGER_SCRIPT: &str = r#"
 // Helpers
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Linux-only: Visibility API shim
+// ---------------------------------------------------------------------------
+/// On WebKitGTK (Linux) `document.visibilityState` stays `'visible'` even when
+/// the window is minimised or obscured, because GTK widget visibility is not
+/// coupled to window iconification.  As a result, Messenger never fires
+/// `new Notification()` – it assumes the user is watching the UI.
+///
+/// This script overrides the Visibility API with a flag that Rust can control
+/// via `window.__messengerx_set_visible(bool)`.  The Rust side calls this from
+/// a `WindowEvent::Focused` handler so the state tracks real OS focus.
+#[cfg(target_os = "linux")]
+const VISIBILITY_OVERRIDE_SCRIPT: &str = r#"
+(function() {
+    var _hidden = false;
+    Object.defineProperty(document, 'visibilityState', {
+        get: function() { return _hidden ? 'hidden' : 'visible'; },
+        configurable: true
+    });
+    Object.defineProperty(document, 'hidden', {
+        get: function() { return _hidden; },
+        configurable: true
+    });
+    window.__messengerx_set_visible = function(visible) {
+        if (_hidden === !visible) return;
+        _hidden = !visible;
+        document.dispatchEvent(new Event('visibilitychange'));
+    };
+})();
+"#;
+
 /// Persists the current Unix timestamp (seconds) as `last_update_check_secs`
 /// in the user's settings file.
 ///
@@ -540,7 +571,7 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     // ------------------------------------------------------------------
     // 4. Build the main window programmatically.
     // ------------------------------------------------------------------
-    let webview = WebviewWindowBuilder::new(app, "main", webview_url)
+    let builder = WebviewWindowBuilder::new(app, "main", webview_url)
         .title("Messenger X")
         .inner_size(1200.0, 800.0)
         .min_inner_size(400.0, 300.0)
@@ -553,7 +584,15 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         .initialization_script(&offline_banner_script)
         .initialization_script(&zoom_init_script)
         .initialization_script(&scrollbar_fix_script)
-        .initialization_script(WINDOW_OPEN_OVERRIDE_SCRIPT)
+        .initialization_script(WINDOW_OPEN_OVERRIDE_SCRIPT);
+
+    // On Linux, inject the Visibility API shim so that Rust can push the real
+    // focus state and Messenger correctly fires desktop notifications when the
+    // window is not active.
+    #[cfg(target_os = "linux")]
+    let builder = builder.initialization_script(VISIBILITY_OVERRIDE_SCRIPT);
+
+    let webview = builder
         // Spoof a desktop Chrome UA so Messenger serves its full web-app.
         .user_agent(
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) \
@@ -660,6 +699,28 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
                 let _ = close_webview.hide();
+            }
+        });
+    }
+
+    // ------------------------------------------------------------------
+    // 4d. Linux: push real OS-focus state into the Visibility API shim.
+    //     WebKitGTK does not update document.visibilityState when the GTK
+    //     window is iconified, so Messenger never fires notifications.
+    //     We listen for WindowEvent::Focused and call the JS helper that
+    //     was injected by VISIBILITY_OVERRIDE_SCRIPT.
+    // ------------------------------------------------------------------
+    #[cfg(target_os = "linux")]
+    {
+        let vis_webview = webview.clone();
+        webview.on_window_event(move |event| {
+            if let tauri::WindowEvent::Focused(focused) = event {
+                let js = if *focused {
+                    "window.__messengerx_set_visible?.(true)"
+                } else {
+                    "window.__messengerx_set_visible?.(false)"
+                };
+                let _ = vis_webview.eval(js);
             }
         });
     }
