@@ -289,7 +289,13 @@ fn build_scrollbar_fix_script(is_macos: bool) -> String {
 /// Injected **at document-start** (before the page HTML is parsed).
 const WINDOW_OPEN_OVERRIDE_SCRIPT: &str = r#"
 (function() {
-    const ALLOWED_DOMAINS = ['messenger.com', 'facebook.com', 'fbcdn.net', 'fbsbx.com'];
+    const ALLOWED_DOMAINS = [
+        'messenger.com', 'facebook.com', 'fbcdn.net', 'fbsbx.com',
+        // Google domains required for the Facebook login reCAPTCHA flow.
+        // Facebook redirects to accounts.google.com / recaptcha.google.com
+        // during login verification — these must render inside the WebView.
+        'google.com', 'gstatic.com', 'recaptcha.net'
+    ];
 
     function jlog(msg) {
         try { window.__TAURI__.core.invoke('js_log', { message: msg }); } catch(_) {}
@@ -592,7 +598,21 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
 
-            const ALLOWED: &[&str] = &["messenger.com", "facebook.com", "fbcdn.net", "fbsbx.com"];
+            // Google domains are required for the Facebook login reCAPTCHA flow:
+            // Facebook redirects to accounts.google.com / recaptcha.google.com
+            // during login verification.  These pages must render inside the
+            // WebView (where session cookies exist) — opening them in the system
+            // browser breaks the flow because the browser has no session context.
+            const ALLOWED: &[&str] = &[
+                "messenger.com",
+                "facebook.com",
+                "fbcdn.net",
+                "fbsbx.com",
+                // Google auth & reCAPTCHA (needed for FB login verification)
+                "google.com",
+                "gstatic.com",
+                "recaptcha.net",
+            ];
             let is_allowed = ALLOWED
                 .iter()
                 .any(|&d| host == d || host.ends_with(&format!(".{d}")));
