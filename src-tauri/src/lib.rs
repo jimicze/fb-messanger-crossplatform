@@ -316,6 +316,54 @@ fn build_scrollbar_fix_script(is_macos: bool) -> String {
     )
 }
 
+/// Builds a JavaScript snippet that overrides `window.matchMedia` so that
+/// `prefers-color-scheme` queries return the forced appearance mode.
+///
+/// The script first checks `sessionStorage['__mx_appearance']` for a runtime
+/// override (set by the tray/menu appearance handler when switching themes),
+/// then falls back to the baked-in `mode` string from Rust settings.  This
+/// two-layer approach means:
+///
+/// - **Startup**: the baked-in mode applies (sessionStorage is empty).
+/// - **Runtime switch**: the handler sets sessionStorage and reloads the page;
+///   the init-script re-runs on the new load and picks up the sessionStorage
+///   value, so the new theme takes effect without restarting the app.
+/// - **App restart**: sessionStorage is cleared; the new baked-in mode
+///   (rebuilt from updated Rust settings) applies.
+///
+/// Baked-in `mode` values: `"dark"`, `"light"`, or `"system"` (no override).
+fn build_appearance_script(mode: &str) -> String {
+    format!(
+        r#"(function() {{
+    try {{
+        var _rt = sessionStorage.getItem('__mx_appearance');
+        var _m = (_rt !== null) ? _rt : '{mode}';
+        if (_m === 'dark' || _m === 'light') {{
+            var _fd = (_m === 'dark');
+            var _o = window.matchMedia.bind(window);
+            window.matchMedia = function(q) {{
+                if (typeof q === 'string' && q.indexOf('prefers-color-scheme') !== -1) {{
+                    var _d = q.indexOf('dark') !== -1;
+                    return {{
+                        matches: _fd ? _d : !_d,
+                        media: q,
+                        onchange: null,
+                        addListener: function() {{}},
+                        removeListener: function() {{}},
+                        addEventListener: function() {{}},
+                        removeEventListener: function() {{}},
+                        dispatchEvent: function() {{ return false; }}
+                    }};
+                }}
+                return _o(q);
+            }};
+        }}
+    }} catch(_e) {{}}
+}})();"#,
+        mode = mode
+    )
+}
+
 /// Overrides `window.open()` to intercept external links that Messenger opens
 /// in a new tab/window.  Messenger is a React SPA that calls `window.open()`
 /// for external URLs rather than navigating the main frame, so the Tauri
@@ -684,6 +732,10 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     // gradient behind it. On other platforms we use custom webkit-scrollbar.
     let scrollbar_fix_script = build_scrollbar_fix_script(cfg!(target_os = "macos"));
 
+    // Build the appearance override script (overrides window.matchMedia so
+    // that prefers-color-scheme queries return the forced mode).
+    let appearance_script = build_appearance_script(&settings.appearance);
+
     // ------------------------------------------------------------------
     // 4. Build the main window programmatically.
     // ------------------------------------------------------------------
@@ -700,6 +752,7 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         .initialization_script(&offline_banner_script)
         .initialization_script(&zoom_init_script)
         .initialization_script(&scrollbar_fix_script)
+        .initialization_script(&appearance_script)
         .initialization_script(WINDOW_OPEN_OVERRIDE_SCRIPT);
 
     // On Linux, inject the Visibility API shim so that Rust can push the real
@@ -800,6 +853,19 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     if (zoom_level - 1.0).abs() > f64::EPSILON {
         if let Err(e) = webview.set_zoom(zoom_level) {
             log::warn!("[MessengerX] Failed to apply initial zoom {zoom_level}: {e}");
+        }
+    }
+
+    // Apply initial window chrome theme (title bar / decorations) based on
+    // the saved appearance setting.  `None` = follow OS (system default).
+    {
+        let chrome_theme = match settings.appearance.as_str() {
+            "dark" => Some(tauri::Theme::Dark),
+            "light" => Some(tauri::Theme::Light),
+            _ => None,
+        };
+        if let Err(e) = webview.set_theme(chrome_theme) {
+            log::warn!("[MessengerX] Failed to apply initial window theme: {e}");
         }
     }
 
@@ -1037,6 +1103,34 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         .checked(settings.notification_sound)
         .build(app)?;
 
+        // Appearance submenu with radio-like CheckMenuItems (System/Dark/Light)
+        let appearance_system_item = CheckMenuItemBuilder::with_id(
+            "appearance_system",
+            &tr.settings_appearance_system,
+        )
+        .checked(settings.appearance == "system")
+        .build(app)?;
+
+        let appearance_dark_item = CheckMenuItemBuilder::with_id(
+            "appearance_dark",
+            &tr.settings_appearance_dark,
+        )
+        .checked(settings.appearance == "dark")
+        .build(app)?;
+
+        let appearance_light_item = CheckMenuItemBuilder::with_id(
+            "appearance_light",
+            &tr.settings_appearance_light,
+        )
+        .checked(settings.appearance == "light")
+        .build(app)?;
+
+        let appearance_submenu = SubmenuBuilder::new(app, &tr.settings_appearance)
+            .item(&appearance_system_item)
+            .item(&appearance_dark_item)
+            .item(&appearance_light_item)
+            .build()?;
+
         // Zoom submenu with radio-like CheckMenuItems (60%-120%)
         let zoom_levels: &[(u32, &str)] = &[
             (60, "60%"),
@@ -1120,6 +1214,7 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             .item(&stay_logged_in_item)
             .item(&notifications_item)
             .item(&notification_sound_item)
+            .item(&appearance_submenu)
             .item(&sep3)
             .item(&zoom_submenu)
             .item(&sep4)
@@ -1147,6 +1242,9 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         let start_minimized_c = start_minimized_item.clone();
         let auto_update_c = auto_update_item.clone();
         let zoom_checks_c = zoom_checks.clone();
+        let appearance_system_c = appearance_system_item.clone();
+        let appearance_dark_c = appearance_dark_item.clone();
+        let appearance_light_c = appearance_light_item.clone();
 
         // Translated strings for update-check notifications.
         let tr_update_available = tr.settings_update_available.clone();
@@ -1220,6 +1318,37 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                                 services::auth::load_settings(handle).unwrap_or_default();
                             s.notification_sound = checked;
                             let _ = services::auth::save_settings(handle, &s);
+                        }
+                    }
+
+                    // ---- Appearance (radio-like behaviour) ----
+                    _ if id.starts_with("appearance_") => {
+                        let mode = &id["appearance_".len()..]; // "system", "dark", or "light"
+                        // Enforce radio: uncheck all, check selected.
+                        let _ = appearance_system_c.set_checked(mode == "system");
+                        let _ = appearance_dark_c.set_checked(mode == "dark");
+                        let _ = appearance_light_c.set_checked(mode == "light");
+                        // Persist.
+                        let mut s =
+                            services::auth::load_settings(handle).unwrap_or_default();
+                        s.appearance = mode.to_string();
+                        let _ = services::auth::save_settings(handle, &s);
+                        // Apply: store in sessionStorage + reload so the
+                        // initialization_script picks up the new value.
+                        if let Some(wv) = handle.get_webview_window("main") {
+                            let script = format!(
+                                "sessionStorage.setItem('__mx_appearance','{}');\
+                                 window.location.reload();",
+                                mode
+                            );
+                            let _ = wv.eval(&script);
+                            // Update window chrome theme (title bar) immediately.
+                            let theme = match mode {
+                                "dark" => Some(tauri::Theme::Dark),
+                                "light" => Some(tauri::Theme::Light),
+                                _ => None,
+                            };
+                            let _ = wv.set_theme(theme);
                         }
                     }
 
@@ -1436,6 +1565,14 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                             let _ = wv.set_zoom(1.0);
                         }
 
+                        // Reset appearance to system.
+                        let _ = appearance_system_c.set_checked(true);
+                        let _ = appearance_dark_c.set_checked(false);
+                        let _ = appearance_light_c.set_checked(false);
+                        if let Some(wv) = handle.get_webview_window("main") {
+                            let _ = wv.set_theme(None);
+                        }
+
                         // Disable autostart.
                         {
                             use tauri_plugin_autostart::ManagerExt;
@@ -1444,9 +1581,12 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                         let _ = autostart_c.set_checked(false);
 
                         // Navigate to messenger.com to clear session/cookies.
+                        // Also reset the appearance sessionStorage key so the
+                        // init-script starts clean on the new page load.
                         if let Some(wv) = handle.get_webview_window("main") {
                             let _ = wv.eval(
-                                "window.location.href = 'https://www.messenger.com';",
+                                "sessionStorage.setItem('__mx_appearance','system');\
+                                 window.location.href='https://www.messenger.com';",
                             );
                             let _ = wv.show();
                             let _ = wv.set_focus();
@@ -1510,6 +1650,34 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         )
         .checked(settings.notification_sound)
         .build(app)?;
+
+        // Appearance submenu with radio-like CheckMenuItems (System/Dark/Light)
+        let appearance_system_item = CheckMenuItemBuilder::with_id(
+            "appearance_system",
+            &tr.settings_appearance_system,
+        )
+        .checked(settings.appearance == "system")
+        .build(app)?;
+
+        let appearance_dark_item = CheckMenuItemBuilder::with_id(
+            "appearance_dark",
+            &tr.settings_appearance_dark,
+        )
+        .checked(settings.appearance == "dark")
+        .build(app)?;
+
+        let appearance_light_item = CheckMenuItemBuilder::with_id(
+            "appearance_light",
+            &tr.settings_appearance_light,
+        )
+        .checked(settings.appearance == "light")
+        .build(app)?;
+
+        let appearance_submenu = SubmenuBuilder::new(app, &tr.settings_appearance)
+            .item(&appearance_system_item)
+            .item(&appearance_dark_item)
+            .item(&appearance_light_item)
+            .build()?;
 
         // Zoom submenu with radio-like CheckMenuItems (60%–120%)
         let zoom_levels: &[(u32, &str)] = &[
@@ -1592,6 +1760,7 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             .item(&stay_logged_in_item)
             .item(&notifications_item)
             .item(&notification_sound_item)
+            .item(&appearance_submenu)
             .item(&sep3)
             .item(&zoom_submenu)
             .item(&sep4)
@@ -1633,6 +1802,9 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         let start_minimized_c = start_minimized_item.clone();
         let auto_update_c = auto_update_item.clone();
         let zoom_checks_c = zoom_checks.clone();
+        let appearance_system_c = appearance_system_item.clone();
+        let appearance_dark_c = appearance_dark_item.clone();
+        let appearance_light_c = appearance_light_item.clone();
 
         // Translated strings for update-check notifications and dialog.
         let tr_no_update = tr.settings_no_update.clone();
@@ -1680,6 +1852,36 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                         let mut s = services::auth::load_settings(&h).unwrap_or_default();
                         s.notification_sound = checked;
                         let _ = services::auth::save_settings(&h, &s);
+                    }
+                }
+
+                // ---- Appearance (radio-like behaviour) ----
+                _ if id.starts_with("appearance_") => {
+                    let mode = &id["appearance_".len()..]; // "system", "dark", or "light"
+                    // Enforce radio: uncheck all, check selected.
+                    let _ = appearance_system_c.set_checked(mode == "system");
+                    let _ = appearance_dark_c.set_checked(mode == "dark");
+                    let _ = appearance_light_c.set_checked(mode == "light");
+                    // Persist.
+                    let mut s = services::auth::load_settings(&h).unwrap_or_default();
+                    s.appearance = mode.to_string();
+                    let _ = services::auth::save_settings(&h, &s);
+                    // Apply: store in sessionStorage + reload so the
+                    // initialization_script picks up the new value.
+                    if let Some(wv) = h.get_webview_window("main") {
+                        let script = format!(
+                            "sessionStorage.setItem('__mx_appearance','{}');\
+                             window.location.reload();",
+                            mode
+                        );
+                        let _ = wv.eval(&script);
+                        // Update window chrome theme (title bar) immediately.
+                        let theme = match mode {
+                            "dark" => Some(tauri::Theme::Dark),
+                            "light" => Some(tauri::Theme::Light),
+                            _ => None,
+                        };
+                        let _ = wv.set_theme(theme);
                     }
                 }
 
@@ -1862,6 +2064,14 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                         let _ = wv.set_zoom(1.0);
                     }
 
+                    // Reset appearance to system.
+                    let _ = appearance_system_c.set_checked(true);
+                    let _ = appearance_dark_c.set_checked(false);
+                    let _ = appearance_light_c.set_checked(false);
+                    if let Some(wv) = h.get_webview_window("main") {
+                        let _ = wv.set_theme(None);
+                    }
+
                     // Disable autostart.
                     {
                         use tauri_plugin_autostart::ManagerExt;
@@ -1870,9 +2080,12 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                     let _ = autostart_c.set_checked(false);
 
                     // Navigate to messenger.com to clear session/cookies.
+                    // Also reset the appearance sessionStorage key so the
+                    // init-script starts clean on the new page load.
                     if let Some(wv) = h.get_webview_window("main") {
                         let _ = wv.eval(
-                            "window.location.href = 'https://www.messenger.com';",
+                            "sessionStorage.setItem('__mx_appearance','system');\
+                             window.location.href='https://www.messenger.com';",
                         );
                         let _ = wv.show();
                         let _ = wv.set_focus();

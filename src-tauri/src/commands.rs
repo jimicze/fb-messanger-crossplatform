@@ -29,6 +29,8 @@ pub struct AppSettings {
     pub auto_update: bool,
     /// Unix timestamp (seconds) of the last update check; `None` if never checked.
     pub last_update_check_secs: Option<u64>,
+    /// Appearance mode: `"system"` (follow OS), `"dark"`, or `"light"`.
+    pub appearance: String,
 }
 
 impl Default for AppSettings {
@@ -42,6 +44,7 @@ impl Default for AppSettings {
             start_minimized: false,
             auto_update: true,
             last_update_check_secs: None,
+            appearance: "system".to_string(),
         }
     }
 }
@@ -354,6 +357,7 @@ mod tests {
             start_minimized: true,
             auto_update: false,
             last_update_check_secs: Some(1_000_000),
+            appearance: "dark".to_string(),
         };
         let json = serde_json::to_string(&settings).expect("serialize");
         let deserialized: AppSettings = serde_json::from_str(&json).expect("deserialize");
@@ -363,6 +367,7 @@ mod tests {
         assert!(!deserialized.notification_sound);
         assert!(deserialized.autostart);
         assert!(deserialized.start_minimized);
+        assert_eq!(deserialized.appearance, "dark");
     }
 
     #[test]
@@ -377,6 +382,8 @@ mod tests {
         assert!(settings.notification_sound);
         assert!(!settings.autostart);
         assert!(!settings.start_minimized);
+        // New appearance field defaults to "system"
+        assert_eq!(settings.appearance, "system");
     }
 
     #[test]

@@ -99,6 +99,16 @@ pub struct Translations {
     pub settings_update_install_btn: String,
     /// "Later" button label in the update confirmation dialog.
     pub settings_update_later_btn: String,
+
+    // Appearance submenu
+    /// "Appearance" submenu label.
+    pub settings_appearance: String,
+    /// "System" appearance option (follow OS theme).
+    pub settings_appearance_system: String,
+    /// "Dark" appearance option.
+    pub settings_appearance_dark: String,
+    /// "Light" appearance option.
+    pub settings_appearance_light: String,
 }
 
 /// Returns the translation strings for the given locale code.
@@ -138,6 +148,10 @@ fn english() -> Translations {
         settings_update_dialog_body: "Messenger X v{} is available. Install now?".to_string(),
         settings_update_install_btn: "Install".to_string(),
         settings_update_later_btn: "Later".to_string(),
+        settings_appearance: "Appearance".to_string(),
+        settings_appearance_system: "System".to_string(),
+        settings_appearance_dark: "Dark".to_string(),
+        settings_appearance_light: "Light".to_string(),
     }
 }
 
@@ -170,6 +184,10 @@ fn czech() -> Translations {
         settings_update_dialog_body: "Messenger X v{} je k dispozici. Nainstalovat nyn\u{00ed}?".to_string(),
         settings_update_install_btn: "Nainstalovat".to_string(),
         settings_update_later_btn: "Pozd\u{011b}ji".to_string(),
+        settings_appearance: "Vzhled".to_string(),
+        settings_appearance_system: "Syst\u{00e9}m".to_string(),
+        settings_appearance_dark: "Tmav\u{00fd}".to_string(),
+        settings_appearance_light: "Sv\u{011b}tl\u{00fd}".to_string(),
     }
 }
 
@@ -241,6 +259,10 @@ mod tests {
                 &t.settings_update_dialog_body,
                 &t.settings_update_install_btn,
                 &t.settings_update_later_btn,
+                &t.settings_appearance,
+                &t.settings_appearance_system,
+                &t.settings_appearance_dark,
+                &t.settings_appearance_light,
             ];
             for (i, field) in fields.iter().enumerate() {
                 assert!(
