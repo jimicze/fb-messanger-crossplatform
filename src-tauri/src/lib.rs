@@ -627,6 +627,10 @@ pub fn run() {
 
 /// Performs one-time application setup inside the Tauri `setup` hook.
 fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+    if let Err(e) = services::notification::initialize() {
+        log::warn!("[MessengerX] Failed to initialize native notifications: {e}");
+    }
+
     // ------------------------------------------------------------------
     // 1. Load persisted settings so we can bake the zoom level into the
     //    initialization script before the window is created.
