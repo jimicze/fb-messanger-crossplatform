@@ -8,9 +8,92 @@
 //! the application has a registered `.desktop` file.  If `notify-send` is not
 //! available or returns a non-zero exit code we fall back to
 //! `tauri-plugin-notification` (direct D-Bus).
+//!
+//! ## macOS strategy
+//! On macOS we bypass `tauri-plugin-notification` / `notify-rust` and use the
+//! modern `UNUserNotificationCenter` API directly. The legacy backend only
+//! delivers notifications to Notification Center on newer macOS releases,
+//! whereas the modern API lets us request permission and force foreground
+//! presentation as a banner.
 
 use tauri::AppHandle;
 use tauri_plugin_notification::NotificationExt;
+
+#[cfg(target_os = "macos")]
+use std::{
+    sync::OnceLock,
+    time::{SystemTime, UNIX_EPOCH},
+};
+
+#[cfg(target_os = "macos")]
+use block2::RcBlock;
+#[cfg(target_os = "macos")]
+use objc2::{
+    define_class, msg_send,
+    rc::Retained,
+    runtime::{NSObject, ProtocolObject},
+    MainThreadOnly,
+};
+#[cfg(target_os = "macos")]
+use objc2_foundation::{MainThreadMarker, NSObjectProtocol, NSString};
+#[cfg(target_os = "macos")]
+use objc2_user_notifications::{
+    UNAuthorizationOptions, UNMutableNotificationContent, UNNotification,
+    UNNotificationPresentationOptions, UNNotificationRequest, UNNotificationSound,
+    UNUserNotificationCenter, UNUserNotificationCenterDelegate,
+};
+
+#[cfg(target_os = "macos")]
+static MACOS_NOTIFICATION_INIT: OnceLock<Result<(), String>> = OnceLock::new();
+
+#[cfg(target_os = "macos")]
+define_class!(
+    #[unsafe(super(NSObject))]
+    #[thread_kind = MainThreadOnly]
+    struct MessengerNotificationDelegate;
+
+    unsafe impl NSObjectProtocol for MessengerNotificationDelegate {}
+
+    unsafe impl UNUserNotificationCenterDelegate for MessengerNotificationDelegate {
+        #[unsafe(method(userNotificationCenter:willPresentNotification:withCompletionHandler:))]
+        fn will_present_notification(
+            &self,
+            _center: &UNUserNotificationCenter,
+            notification: &UNNotification,
+            completion_handler: &block2::DynBlock<dyn Fn(UNNotificationPresentationOptions)>,
+        ) {
+            let mut options =
+                UNNotificationPresentationOptions::Banner | UNNotificationPresentationOptions::List;
+            if notification.request().content().sound().is_some() {
+                options |= UNNotificationPresentationOptions::Sound;
+            }
+            completion_handler.call((options,));
+        }
+    }
+);
+
+#[cfg(target_os = "macos")]
+impl MessengerNotificationDelegate {
+    fn new(mtm: MainThreadMarker) -> Retained<Self> {
+        let this = Self::alloc(mtm);
+        unsafe { msg_send![super(this), init] }
+    }
+}
+
+/// Performs one-time native notification initialization for the current OS.
+pub fn initialize() -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        return MACOS_NOTIFICATION_INIT
+            .get_or_init(initialize_macos_notification_center)
+            .clone();
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        Ok(())
+    }
+}
 
 /// Display a native OS notification with platform-appropriate sound.
 ///
@@ -30,6 +113,11 @@ pub fn show_notification(
     tag: &str,
     silent: bool,
 ) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        return show_via_user_notifications(title, body, tag, silent);
+    }
+
     // On Linux try notify-send first; fall back to tauri-plugin-notification.
     #[cfg(target_os = "linux")]
     match show_via_notify_send(title, body, silent) {
@@ -43,6 +131,66 @@ pub fn show_notification(
     }
 
     show_via_tauri_plugin(app, title, body, tag, silent)
+}
+
+#[cfg(target_os = "macos")]
+fn initialize_macos_notification_center() -> Result<(), String> {
+    let mtm = MainThreadMarker::new()
+        .ok_or_else(|| "macOS notifications must be initialized on the main thread".to_string())?;
+    let center = UNUserNotificationCenter::currentNotificationCenter();
+    let delegate = MessengerNotificationDelegate::new(mtm);
+    center.setDelegate(Some(ProtocolObject::from_ref(&*delegate)));
+    std::mem::forget(delegate);
+
+    let request_permission = RcBlock::new(|granted, error| {
+        if !error.is_null() {
+            log::warn!("[MessengerX] macOS notification authorization request failed");
+        } else if !granted.as_bool() {
+            log::warn!(
+                "[MessengerX] macOS notifications were denied in system settings; \
+                 banners will not be shown until permission is enabled"
+            );
+        }
+    });
+
+    center.requestAuthorizationWithOptions_completionHandler(
+        UNAuthorizationOptions::Alert
+            | UNAuthorizationOptions::Sound
+            | UNAuthorizationOptions::Badge,
+        &request_permission,
+    );
+
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn show_via_user_notifications(
+    title: &str,
+    body: &str,
+    tag: &str,
+    silent: bool,
+) -> Result<(), String> {
+    initialize()?;
+
+    let center = UNUserNotificationCenter::currentNotificationCenter();
+    let content = UNMutableNotificationContent::new();
+    content.setTitle(&NSString::from_str(title));
+    content.setBody(&NSString::from_str(body));
+
+    if !tag.is_empty() {
+        content.setThreadIdentifier(&NSString::from_str(tag));
+    }
+
+    if !silent {
+        let sound = UNNotificationSound::defaultSound();
+        content.setSound(Some(&sound));
+    }
+
+    let identifier = NSString::from_str(&build_macos_notification_identifier(tag));
+    let request =
+        UNNotificationRequest::requestWithIdentifier_content_trigger(&identifier, &content, None);
+    center.addNotificationRequest_withCompletionHandler(&request, None);
+    Ok(())
 }
 
 /// Dispatch a notification through `tauri-plugin-notification` (cross-platform).
@@ -139,6 +287,16 @@ fn default_sound() -> &'static str {
     }
 }
 
+#[cfg(target_os = "macos")]
+fn build_macos_notification_identifier(tag: &str) -> String {
+    let prefix = if tag.is_empty() { "message" } else { tag };
+    let ts = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    format!("messengerx-{prefix}-{ts}")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -160,6 +318,17 @@ mod tests {
             known_sounds.contains(&sound),
             "default_sound() returned unexpected value: {sound}"
         );
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn test_macos_notification_identifier_uses_expected_prefix() {
+        let tagged = build_macos_notification_identifier("thread-123");
+        let untagged = build_macos_notification_identifier("");
+
+        assert!(tagged.starts_with("messengerx-thread-123-"));
+        assert!(untagged.starts_with("messengerx-message-"));
+        assert_ne!(tagged, untagged);
     }
 
     /// Verify that the notify-send command is constructed without panicking
