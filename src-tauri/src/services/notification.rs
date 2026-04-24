@@ -21,6 +21,7 @@ use tauri_plugin_notification::NotificationExt;
 
 #[cfg(target_os = "macos")]
 use std::{
+    ptr::NonNull,
     sync::OnceLock,
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -35,7 +36,7 @@ use objc2::{
     MainThreadOnly,
 };
 #[cfg(target_os = "macos")]
-use objc2_foundation::{MainThreadMarker, NSObjectProtocol, NSString};
+use objc2_foundation::{MainThreadMarker, NSError, NSObjectProtocol, NSString};
 #[cfg(target_os = "macos")]
 use objc2_user_notifications::{
     UNAuthorizationOptions, UNMutableNotificationContent, UNNotification,
@@ -140,11 +141,17 @@ fn initialize_macos_notification_center() -> Result<(), String> {
     let center = UNUserNotificationCenter::currentNotificationCenter();
     let delegate = MessengerNotificationDelegate::new(mtm);
     center.setDelegate(Some(ProtocolObject::from_ref(&*delegate)));
+    // `UNUserNotificationCenter` keeps only a weak reference to its delegate,
+    // so we intentionally leak the process-global delegate for the app lifetime.
     std::mem::forget(delegate);
 
     let request_permission = RcBlock::new(|granted, error| {
-        if !error.is_null() {
-            log::warn!("[MessengerX] macOS notification authorization request failed");
+        if let Some(error) = NonNull::new(error) {
+            let error: &NSError = unsafe { error.as_ref() };
+            log::warn!(
+                "[MessengerX] macOS notification authorization request failed: {}",
+                error.localizedDescription()
+            );
         } else if !granted.as_bool() {
             log::warn!(
                 "[MessengerX] macOS notifications were denied in system settings; \
