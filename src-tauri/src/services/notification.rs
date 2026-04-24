@@ -67,7 +67,6 @@ fn show_via_tauri_plugin(
         "[MessengerX][Notification] Trying tauri-plugin-notification: title={title:?} body_len={} tag={tag:?} silent={silent}",
         body.chars().count()
     );
-
     let mut builder = app
         .notification()
         .builder()
