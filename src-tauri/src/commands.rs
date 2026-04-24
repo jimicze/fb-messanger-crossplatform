@@ -245,19 +245,26 @@ pub fn js_log(message: String) {
     log::info!("[MessengerX][JS] {}", message);
 }
 
-/// Return whether the main window currently has OS input focus.
+/// Return whether the main window should be treated as visible by Messenger.
 ///
-/// Called from the Linux Visibility API shim on every main-frame page load
-/// so that the JS `document.visibilityState` override is synchronised from
-/// the real OS window state instead of from a baked-in start-up preference.
-/// Without this resync, re-navigations (e.g. a logout that loads the login
-/// page) would reinitialise `_hidden` from the startup setting even if the
-/// window is currently visible and focused.
+/// On Linux this is stricter than plain OS focus: the window must be focused
+/// and not minimized. The Visibility API shim calls this on every main-frame
+/// page load so that the JS `document.visibilityState` / `document.hasFocus()`
+/// overrides are synchronised from the real OS window state instead of from a
+/// baked-in start-up preference. Without this resync, re-navigations (e.g.
+/// logout -> login page) could reinitialise the shim with a stale state.
 #[tauri::command]
 pub fn get_window_focused(app: AppHandle) -> bool {
-    app.get_webview_window("main")
-        .and_then(|w| w.is_focused().ok())
-        .unwrap_or(false)
+    let Some(window) = app.get_webview_window("main") else {
+        return false;
+    };
+    let Ok(is_focused) = window.is_focused() else {
+        return false;
+    };
+    let Ok(is_minimized) = window.is_minimized() else {
+        return false;
+    };
+    is_focused && !is_minimized
 }
 
 /// Enable or disable auto-start at system login.

@@ -396,9 +396,10 @@ const SNAPSHOT_TRIGGER_SCRIPT: &str = r#"
 /// coupled to window iconification.  As a result, Messenger never fires
 /// `new Notification()` – it assumes the user is watching the UI.
 ///
-/// This script overrides the Visibility API with a flag that Rust controls
-/// via `window.__messengerx_set_visible(bool)`.  Two Rust-side paths drive
-/// the flag at runtime (see section 4d of `setup_webview`):
+/// This script overrides the Visibility API and `document.hasFocus()` with a
+/// flag that Rust controls via `window.__messengerx_set_visible(bool)`.
+/// Two Rust-side paths drive the flag at runtime (see section 4d of
+/// `setup_webview`):
 ///
 /// * **`WindowEvent::Focused`** – fast path, works on most WMs (GNOME/Mutter,
 ///   KDE/KWin) that emit a focus-lost event when the window is iconified.
@@ -406,22 +407,42 @@ const SNAPSHOT_TRIGGER_SCRIPT: &str = r#"
 ///   (e.g. Linux Mint/Muffin) that do NOT emit a `Focused(false)` event on
 ///   iconification.  The setter is idempotent, so double-calling is harmless.
 ///
+/// The setter also dispatches synthetic `focus` / `blur` events alongside
+/// `visibilitychange` because Messenger's notification gate appears to consult
+/// both focus and visibility signals on Linux.
+///
 /// On **every main-frame page load** the script also calls `get_window_focused`
 /// via the Tauri IPC bridge to immediately resync `_hidden` from the actual OS
-/// window state.  This is necessary because `initialization_script` runs on
+/// window state. This is necessary because `initialization_script` runs on
 /// every navigation (not just the first load), so baking a startup preference
 /// into the initial value would corrupt the flag after any re-navigation (e.g.
 /// a logout that loads the login page) when the window is already focused.
 
-/// Poll interval (ms) for the `is_minimized()` background thread.
+/// Poll interval (ms) for the Linux background thread that derives Messenger's
+/// effective visibility from `is_focused()` + `is_minimized()`.
 /// 500 ms gives a worst-case detection latency that is imperceptible to users
-/// while keeping CPU overhead negligible (one Tauri IPC call per half-second).
+/// while keeping CPU overhead negligible (two Tauri window-state queries per
+/// half-second).
 #[cfg(target_os = "linux")]
-const MINIMIZE_POLL_INTERVAL_MS: u64 = 500;
+const WINDOW_STATE_POLL_INTERVAL_MS: u64 = 500;
 
 #[cfg(target_os = "linux")]
 const VISIBILITY_OVERRIDE_SCRIPT: &str = r#"(function() {
     var _hidden = false;
+
+    function dispatchFocusChange(visible) {
+        var type = visible ? 'focus' : 'blur';
+        window.dispatchEvent(new Event(type));
+        document.dispatchEvent(new Event(type));
+    }
+
+    function setVisible(visible) {
+        if (_hidden === !visible) return;
+        _hidden = !visible;
+        document.dispatchEvent(new Event('visibilitychange'));
+        dispatchFocusChange(visible);
+    }
+
     Object.defineProperty(document, 'visibilityState', {
         get: function() { return _hidden ? 'hidden' : 'visible'; },
         configurable: true
@@ -430,13 +451,19 @@ const VISIBILITY_OVERRIDE_SCRIPT: &str = r#"(function() {
         get: function() { return _hidden; },
         configurable: true
     });
-    window.__messengerx_set_visible = function(visible) {
-        if (_hidden === !visible) return;
-        _hidden = !visible;
-        document.dispatchEvent(new Event('visibilitychange'));
-    };
+
+    try {
+        Object.defineProperty(document, 'hasFocus', {
+            value: function() { return !_hidden; },
+            configurable: true
+        });
+    } catch(_) {
+        document.hasFocus = function() { return !_hidden; };
+    }
+
+    window.__messengerx_set_visible = setVisible;
     window.__TAURI__.core.invoke('get_window_focused')
-        .then(function(focused) { window.__messengerx_set_visible(focused); })
+        .then(function(focused) { setVisible(focused); })
         .catch(function() {});
 })();"#;
 
@@ -736,11 +763,12 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     //     (a) WindowEvent::Focused – fires immediately on WMs that emit a
     //         focus-change event when the window loses or gains focus (e.g.
     //         GNOME/Mutter, KDE/KWin).
-    //     (b) is_minimized() poll – a 500 ms background thread that detects
-    //         iconify/deiconify for WMs (e.g. Linux Mint/Muffin) that do
-    //         NOT reliably emit a Focused(false) event on iconification.
-    //         __messengerx_set_visible is idempotent, so double-calling
-    //         from both paths is harmless.
+    //     (b) window-state poll – a 500 ms background thread that derives the
+    //         effective notification-visible state from `is_focused()` AND
+    //         `!is_minimized()`. This covers WMs (e.g. Linux Mint / Muffin)
+    //         that do NOT reliably emit a Focused(false) event on iconify.
+    //         __messengerx_set_visible is idempotent, so double-calling from
+    //         both paths is harmless.
     // ------------------------------------------------------------------
     #[cfg(target_os = "linux")]
     {
@@ -757,28 +785,39 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             }
         });
 
-        // Path (b): is_minimized() poll – covers WMs that skip Focused events
-        // on iconify (e.g. Linux Mint / Muffin).  The loop exits automatically
-        // when the window is destroyed (is_minimized returns Err), which Tauri
+        // Path (b): derive effective visibility from focused + minimized state.
+        // This covers WMs that skip Focused events on iconify/backgrounding
+        // (e.g. Linux Mint / Muffin). The loop exits automatically when the
+        // window is destroyed (window-state query returns Err), which Tauri
         // guarantees on app shutdown before the process exits, so no JoinHandle
-        // or explicit cancellation token is needed: the thread is always
-        // given a chance to observe the Err and exit cleanly.
+        // or explicit cancellation token is needed.
         let poll_webview = webview.clone();
         std::thread::spawn(move || {
-            let mut was_minimized = false;
+            let Ok(initially_focused) = poll_webview.is_focused() else {
+                return;
+            };
+            let Ok(initially_minimized) = poll_webview.is_minimized() else {
+                return;
+            };
+            let mut was_visible = initially_focused && !initially_minimized;
+
             loop {
                 std::thread::sleep(std::time::Duration::from_millis(
-                    MINIMIZE_POLL_INTERVAL_MS,
+                    WINDOW_STATE_POLL_INTERVAL_MS,
                 ));
-                let Ok(is_min) = poll_webview.is_minimized() else {
+                let Ok(is_focused) = poll_webview.is_focused() else {
                     break;
                 };
-                if is_min != was_minimized {
-                    was_minimized = is_min;
-                    let js = if is_min {
-                        "window.__messengerx_set_visible?.(false)"
-                    } else {
+                let Ok(is_minimized) = poll_webview.is_minimized() else {
+                    break;
+                };
+                let is_visible = is_focused && !is_minimized;
+                if is_visible != was_visible {
+                    was_visible = is_visible;
+                    let js = if is_visible {
                         "window.__messengerx_set_visible?.(true)"
+                    } else {
+                        "window.__messengerx_set_visible?.(false)"
                     };
                     let _ = poll_webview.eval(js);
                 }
@@ -1942,6 +1981,25 @@ mod tests {
             assert!(
                 VISIBILITY_OVERRIDE_SCRIPT.contains("visibilitychange"),
                 "script must dispatch visibilitychange event"
+            );
+        }
+
+        /// Messenger may consult focus signals in addition to visibility,
+        /// so the script must override `document.hasFocus()` and dispatch
+        /// synthetic `focus` / `blur` events when the state changes.
+        #[test]
+        fn overrides_focus_api_properties() {
+            assert!(
+                VISIBILITY_OVERRIDE_SCRIPT.contains("hasFocus"),
+                "script must override document.hasFocus"
+            );
+            assert!(
+                VISIBILITY_OVERRIDE_SCRIPT.contains("'focus'"),
+                "script must dispatch a synthetic focus event"
+            );
+            assert!(
+                VISIBILITY_OVERRIDE_SCRIPT.contains("'blur'"),
+                "script must dispatch a synthetic blur event"
             );
         }
 
