@@ -18,7 +18,7 @@ use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 /// so that ALL browser notification calls (main-thread and SW-registration-based)
 /// are forwarded to Rust via `invoke('send_notification', …)`.
 ///
-/// **Cesta A+B (v1.3.13):**
+/// **Cesta A+B+C (v1.3.13–14):**
 /// - Cesta A (diagnostika): periodic 30s health-check, SW-register hook, controllerchange
 ///   listener, prototype-level override logging — generates detailed diagnostics in
 ///   `messengerx.log` so we can pinpoint whether Messenger uses `new Notification()`,
@@ -28,6 +28,23 @@ use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 ///   via `navigator.serviceWorker.ready.then(reg => reg.showNotification(…))` are
 ///   forwarded to Rust instead of the browser's notification stack (which is unsupported
 ///   in Tauri WebViews).
+/// - Cesta C: hooks `navigator.permissions.query` to always return `'granted'` for
+///   the `notifications` descriptor so Messenger's permission gate doesn't block calls.
+///
+/// **Cesta D — postMessage bridge (v1.3.15):**
+/// Tauri IPC (`window.__TAURI__.core.invoke`) only works from the main frame
+/// (messenger.com origin).  Cross-origin iframes (e.g. `www.fbsbx.com` which
+/// hosts Messenger's App Worker proxy page) cannot call IPC directly — the
+/// capability system restricts IPC to the `main` window origin.
+///
+/// The bridge works in two halves:
+/// 1. **In any iframe** (`window !== window.top`): `forwardToRust()` sends a
+///    `postMessage` with `type: '__mx_notif__'` to `window.top` instead of
+///    calling IPC directly.  On init, a `__mx_frame_init__` probe is sent so
+///    the log shows which cross-origin frames received the injection.
+/// 2. **In the main frame** (`window === window.top`): a `'message'` listener
+///    receives those relay messages and calls `forwardToRust()` — which this
+///    time succeeds via IPC because we are now in the allowed origin context.
 ///
 /// Injected **at document-start** (before the page HTML is parsed).
 const NOTIFICATION_OVERRIDE_SCRIPT: &str = r#"
@@ -57,11 +74,30 @@ const NOTIFICATION_OVERRIDE_SCRIPT: &str = r#"
     // Core: forward any notification to Rust over IPC.
     // `source` is a short string that identifies which code path fired
     // (e.g. '[window.Notification]' or '[SW.proto]') so logs are easy to grep.
+    //
+    // **Cross-origin iframe path (Cesta D):**
+    // When called from a cross-origin iframe (window !== window.top), Tauri IPC
+    // is unavailable (capability restrictions).  Instead we relay the notification
+    // to the main frame via postMessage; the main-frame listener (section 6) picks
+    // it up and calls forwardToRust again — this time successfully via IPC.
     function forwardToRust(title, options, source) {
+        var body   = (options && options.body)   ? String(options.body)   : '';
+        var tag    = (options && options.tag)    ? String(options.tag)    : '';
+        var silent = (options && options.silent) ? Boolean(options.silent) : false;
+
+        if (window !== window.top) {
+            // Cross-origin iframe: relay to main frame via postMessage.
+            try {
+                window.top.postMessage({
+                    type: '__mx_notif__',
+                    title: title, body: body, tag: tag, silent: silent, source: source
+                }, '*');
+            } catch(_) {}
+            return;
+        }
+
+        // Main frame: forward directly over IPC.
         try {
-            var body   = (options && options.body)   ? String(options.body)   : '';
-            var tag    = (options && options.tag)    ? String(options.tag)    : '';
-            var silent = (options && options.silent) ? Boolean(options.silent) : false;
             jlog(
                 source + ' title='      + JSON.stringify(preview(title)) +
                 ' body='       + JSON.stringify(preview(body)) +
@@ -78,6 +114,21 @@ const NOTIFICATION_OVERRIDE_SCRIPT: &str = r#"
         } catch(e) {
             jlog(source + ' forwardToRust error: ' + String(e));
         }
+    }
+
+    // -----------------------------------------------------------------------
+    // 0. Frame detection probe  [Cesta D — postMessage bridge]
+    //    If the script is running inside a cross-origin iframe, announce the
+    //    frame's hostname to the main frame so the log shows which iframes
+    //    received the injection.  This is the first diagnostic for Cesta D.
+    // -----------------------------------------------------------------------
+    if (window !== window.top) {
+        try {
+            window.top.postMessage({
+                type: '__mx_frame_init__',
+                hostname: window.location.hostname
+            }, '*');
+        } catch(_) {}
     }
 
     // -----------------------------------------------------------------------
@@ -100,7 +151,7 @@ const NOTIFICATION_OVERRIDE_SCRIPT: &str = r#"
         return Promise.resolve('granted');
     };
     window.Notification.__native__ = true;
-    jlog('window.Notification override installed');
+    if (window === window.top) { jlog('window.Notification override installed'); }
 
     // -----------------------------------------------------------------------
     // 2. ServiceWorkerRegistration.prototype.showNotification hook  [Cesta B]
@@ -114,7 +165,9 @@ const NOTIFICATION_OVERRIDE_SCRIPT: &str = r#"
         if (typeof ServiceWorkerRegistration !== 'undefined') {
             var _origProtoShow = ServiceWorkerRegistration.prototype.showNotification;
             ServiceWorkerRegistration.prototype.showNotification = function(title, options) {
-                jlog('[SW.proto] showNotification intercepted: title=' + JSON.stringify(preview(title)));
+                if (window === window.top) {
+                    jlog('[SW.proto] showNotification intercepted: title=' + JSON.stringify(preview(title)));
+                }
                 forwardToRust(title, options || {}, '[SW.proto]');
                 // Return a resolved Promise (matches the original API contract).
                 // We do NOT call _origProtoShow because Tauri WebViews lack a
@@ -123,12 +176,12 @@ const NOTIFICATION_OVERRIDE_SCRIPT: &str = r#"
                 // platforms where push notifications are partially supported.
                 return Promise.resolve();
             };
-            jlog('ServiceWorkerRegistration.prototype.showNotification hooked');
+            if (window === window.top) { jlog('ServiceWorkerRegistration.prototype.showNotification hooked'); }
         } else {
-            jlog('ServiceWorkerRegistration not available (no SW support in this WebView)');
+            if (window === window.top) { jlog('ServiceWorkerRegistration not available (no SW support in this WebView)'); }
         }
     } catch(e) {
-        jlog('SW proto hook failed: ' + String(e));
+        if (window === window.top) { jlog('SW proto hook failed: ' + String(e)); }
     }
 
     // -----------------------------------------------------------------------
@@ -137,44 +190,46 @@ const NOTIFICATION_OVERRIDE_SCRIPT: &str = r#"
     //    active SW changes controller so we can see which SW script Messenger
     //    loads and whether it installs itself as the page controller.
     // -----------------------------------------------------------------------
-    try {
-        if (navigator.serviceWorker) {
-            // Log already-registered SWs from previous page load (persisted).
-            navigator.serviceWorker.getRegistrations().then(function(regs) {
-                jlog(
-                    '[SW.existing] count=' + regs.length +
-                    (regs.length ? ' scope[0]=' + regs[0].scope : '')
-                );
-            }).catch(function(e) { jlog('[SW.existing] getRegistrations error: ' + String(e)); });
+    if (window === window.top) {
+        try {
+            if (navigator.serviceWorker) {
+                // Log already-registered SWs from previous page load (persisted).
+                navigator.serviceWorker.getRegistrations().then(function(regs) {
+                    jlog(
+                        '[SW.existing] count=' + regs.length +
+                        (regs.length ? ' scope[0]=' + regs[0].scope : '')
+                    );
+                }).catch(function(e) { jlog('[SW.existing] getRegistrations error: ' + String(e)); });
 
-            // Wrap register() to log every new SW registration.
-            var _origRegister = navigator.serviceWorker.register.bind(navigator.serviceWorker);
-            navigator.serviceWorker.register = function(scriptURL, options) {
-                jlog('[SW.register] called: scriptURL=' + String(scriptURL));
-                var p = _origRegister(scriptURL, options);
-                p.then(function(reg) {
-                    jlog('[SW.register] resolved: scope=' + reg.scope + ' state=' + reg.active ? reg.active.state : 'no-active');
-                }).catch(function(e) { jlog('[SW.register] rejected: ' + String(e)); });
-                return p;
-            };
-            jlog('navigator.serviceWorker.register hooked');
+                // Wrap register() to log every new SW registration.
+                var _origRegister = navigator.serviceWorker.register.bind(navigator.serviceWorker);
+                navigator.serviceWorker.register = function(scriptURL, options) {
+                    jlog('[SW.register] called: scriptURL=' + String(scriptURL));
+                    var p = _origRegister(scriptURL, options);
+                    p.then(function(reg) {
+                        jlog('[SW.register] resolved: scope=' + reg.scope + ' state=' + reg.active ? reg.active.state : 'no-active');
+                    }).catch(function(e) { jlog('[SW.register] rejected: ' + String(e)); });
+                    return p;
+                };
+                jlog('navigator.serviceWorker.register hooked');
 
-            // Log whenever a new SW takes control of this page.
-            navigator.serviceWorker.addEventListener('controllerchange', function() {
-                var ctrl = navigator.serviceWorker.controller;
-                jlog('[SW.controllerchange] new controller: ' + (ctrl ? ctrl.scriptURL : 'null') +
-                     ' state=' + (ctrl ? ctrl.state : 'n/a'));
-            });
+                // Log whenever a new SW takes control of this page.
+                navigator.serviceWorker.addEventListener('controllerchange', function() {
+                    var ctrl = navigator.serviceWorker.controller;
+                    jlog('[SW.controllerchange] new controller: ' + (ctrl ? ctrl.scriptURL : 'null') +
+                         ' state=' + (ctrl ? ctrl.state : 'n/a'));
+                });
 
-            // Log current controller at startup.
-            var ctrl0 = navigator.serviceWorker.controller;
-            jlog('[SW.controller@init] ' + (ctrl0 ? ctrl0.scriptURL + ' state=' + ctrl0.state : 'none'));
+                // Log current controller at startup.
+                var ctrl0 = navigator.serviceWorker.controller;
+                jlog('[SW.controller@init] ' + (ctrl0 ? ctrl0.scriptURL + ' state=' + ctrl0.state : 'none'));
 
-        } else {
-            jlog('navigator.serviceWorker not available');
+            } else {
+                jlog('navigator.serviceWorker not available');
+            }
+        } catch(e) {
+            jlog('SW register hook failed: ' + String(e));
         }
-    } catch(e) {
-        jlog('SW register hook failed: ' + String(e));
     }
 
     // -----------------------------------------------------------------------
@@ -191,7 +246,9 @@ const NOTIFICATION_OVERRIDE_SCRIPT: &str = r#"
             var _origPermsQuery = navigator.permissions.query.bind(navigator.permissions);
             navigator.permissions.query = function(descriptor) {
                 if (descriptor && descriptor.name === 'notifications') {
-                    jlog('permissions.query({notifications}) intercepted -> returning granted');
+                    if (window === window.top) {
+                        jlog('permissions.query({notifications}) intercepted -> returning granted');
+                    }
                     return Promise.resolve({
                         state: 'granted',
                         status: 'granted',
@@ -203,52 +260,84 @@ const NOTIFICATION_OVERRIDE_SCRIPT: &str = r#"
                 }
                 return _origPermsQuery(descriptor);
             };
-            jlog('navigator.permissions.query hooked');
+            if (window === window.top) { jlog('navigator.permissions.query hooked'); }
         } else {
-            jlog('navigator.permissions.query not available');
+            if (window === window.top) { jlog('navigator.permissions.query not available'); }
         }
-    } catch(e) { jlog('permissions.query hook failed: ' + String(e)); }
+    } catch(e) { if (window === window.top) { jlog('permissions.query hook failed: ' + String(e)); } }
 
     // -----------------------------------------------------------------------
     // 5. Periodic health-check every 30 s  [Cesta A — diagnostika]
     //    Emits a snapshot of all key notification signals to the Rust log so
     //    that even if no notification fires we can verify the override is still
     //    active and track SW state across the session.
+    //    Only runs in the main frame (IPC not available from cross-origin iframes).
     // -----------------------------------------------------------------------
-    setInterval(function() {
-        try {
-            var notifPerm  = 'unknown';
-            var nativeFlag = 'unknown';
+    if (window === window.top) {
+        setInterval(function() {
             try {
-                notifPerm  = window.Notification ? window.Notification.permission : 'Notification-undef';
-                nativeFlag = window.Notification ? String(window.Notification.__native__) : 'Notification-undef';
-            } catch(_) {}
+                var notifPerm  = 'unknown';
+                var nativeFlag = 'unknown';
+                try {
+                    notifPerm  = window.Notification ? window.Notification.permission : 'Notification-undef';
+                    nativeFlag = window.Notification ? String(window.Notification.__native__) : 'Notification-undef';
+                } catch(_) {}
 
-            if (navigator.serviceWorker) {
-                navigator.serviceWorker.getRegistrations().then(function(regs) {
-                    var ctrl = navigator.serviceWorker.controller;
+                if (navigator.serviceWorker) {
+                    navigator.serviceWorker.getRegistrations().then(function(regs) {
+                        var ctrl = navigator.serviceWorker.controller;
+                        jlog(
+                            '[health] permission='  + notifPerm +
+                            ' __native__='  + nativeFlag +
+                            ' visibility=' + String(document.visibilityState) +
+                            ' hasFocus='   + String(safeHasFocus()) +
+                            ' sw_regs='    + regs.length +
+                            ' sw_ctrl='    + (ctrl ? ctrl.scriptURL : 'none')
+                        );
+                    }).catch(function(e) { jlog('[health] getRegistrations error: ' + String(e)); });
+                } else {
                     jlog(
                         '[health] permission='  + notifPerm +
                         ' __native__='  + nativeFlag +
                         ' visibility=' + String(document.visibilityState) +
                         ' hasFocus='   + String(safeHasFocus()) +
-                        ' sw_regs='    + regs.length +
-                        ' sw_ctrl='    + (ctrl ? ctrl.scriptURL : 'none')
+                        ' sw=unavailable'
                     );
-                }).catch(function(e) { jlog('[health] getRegistrations error: ' + String(e)); });
-            } else {
-                jlog(
-                    '[health] permission='  + notifPerm +
-                    ' __native__='  + nativeFlag +
-                    ' visibility=' + String(document.visibilityState) +
-                    ' hasFocus='   + String(safeHasFocus()) +
-                    ' sw=unavailable'
+                }
+            } catch(e) { jlog('[health] error: ' + String(e)); }
+        }, 30000);
+    }
+
+    // -----------------------------------------------------------------------
+    // 6. postMessage listener — relay from cross-origin iframes  [Cesta D]
+    //    Cross-origin iframes (e.g. fbsbx.com) cannot call Tauri IPC directly.
+    //    forwardToRust() in those frames sends a postMessage to window.top
+    //    (section 0 + modified forwardToRust above).  This listener, active
+    //    only in the main frame, receives those relay messages and forwards
+    //    them to Rust via IPC — which succeeds here because we are now in
+    //    the messenger.com origin that is allowed by capabilities.
+    // -----------------------------------------------------------------------
+    if (window === window.top) {
+        window.addEventListener('message', function(e) {
+            if (!e.data || typeof e.data !== 'object') return;
+            if (e.data.type === '__mx_notif__') {
+                jlog('[postMessage] notification relay origin=' + String(e.origin) +
+                     ' source=' + String(e.data.source) +
+                     ' title=' + JSON.stringify(preview(String(e.data.title || ''))));
+                forwardToRust(
+                    e.data.title  || '',
+                    { body: e.data.body || '', tag: e.data.tag || '', silent: !!e.data.silent },
+                    '[postMessage<-' + String(e.data.source || '?') + ']'
                 );
             }
-        } catch(e) { jlog('[health] error: ' + String(e)); }
-    }, 30000);
+            if (e.data.type === '__mx_frame_init__') {
+                jlog('[postMessage] frame init from hostname=' + String(e.data.hostname));
+            }
+        });
+        jlog('postMessage listener installed (main frame)');
+    }
 
-    jlog('init complete (v1.3.14 A+B+C)');
+    if (window === window.top) { jlog('init complete (v1.3.15 A+B+C+D)'); }
 })();
 "#;
 
