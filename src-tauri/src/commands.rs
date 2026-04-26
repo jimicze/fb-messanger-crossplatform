@@ -151,6 +151,19 @@ pub fn update_unread_count(count: u32, app: AppHandle) -> Result<(), String> {
             .map_err(|e| e.to_string())?;
     }
 
+    // Update macOS Dock badge label.
+    #[cfg(target_os = "macos")]
+    if let Some(webview) = app.get_webview_window("main") {
+        let label = if count > 0 {
+            Some(count.to_string())
+        } else {
+            None
+        };
+        if let Err(e) = webview.set_badge_label(label) {
+            log::warn!("[MessengerX][Badge] Failed to set dock badge: {e}");
+        }
+    }
+
     Ok(())
 }
 

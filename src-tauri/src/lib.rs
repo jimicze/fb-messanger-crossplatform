@@ -178,7 +178,39 @@ const NOTIFICATION_OVERRIDE_SCRIPT: &str = r#"
     }
 
     // -----------------------------------------------------------------------
-    // 4. Periodic health-check every 30 s  [Cesta A — diagnostika]
+    // 4. navigator.permissions.query hook  [Cesta C — root-cause fix]
+    //    WKWebView (macOS) and WebKitGTK (Linux) return state='denied' or
+    //    state='prompt' for navigator.permissions.query({name:'notifications'}).
+    //    Messenger consults this API before ever calling new Notification() —
+    //    if the result is not 'granted' it skips the entire notification path.
+    //    We intercept the call and return a fake PermissionStatus that always
+    //    reports 'granted', so Messenger proceeds to fire new Notification().
+    // -----------------------------------------------------------------------
+    try {
+        if (navigator.permissions && typeof navigator.permissions.query === 'function') {
+            var _origPermsQuery = navigator.permissions.query.bind(navigator.permissions);
+            navigator.permissions.query = function(descriptor) {
+                if (descriptor && descriptor.name === 'notifications') {
+                    jlog('permissions.query({notifications}) intercepted -> returning granted');
+                    return Promise.resolve({
+                        state: 'granted',
+                        status: 'granted',
+                        onchange: null,
+                        addEventListener: function() {},
+                        removeEventListener: function() {},
+                        dispatchEvent: function() { return false; }
+                    });
+                }
+                return _origPermsQuery(descriptor);
+            };
+            jlog('navigator.permissions.query hooked');
+        } else {
+            jlog('navigator.permissions.query not available');
+        }
+    } catch(e) { jlog('permissions.query hook failed: ' + String(e)); }
+
+    // -----------------------------------------------------------------------
+    // 5. Periodic health-check every 30 s  [Cesta A — diagnostika]
     //    Emits a snapshot of all key notification signals to the Rust log so
     //    that even if no notification fires we can verify the override is still
     //    active and track SW state across the session.
@@ -216,7 +248,7 @@ const NOTIFICATION_OVERRIDE_SCRIPT: &str = r#"
         } catch(e) { jlog('[health] error: ' + String(e)); }
     }, 30000);
 
-    jlog('init complete (v1.3.13 A+B)');
+    jlog('init complete (v1.3.14 A+B+C)');
 })();
 "#;
 
