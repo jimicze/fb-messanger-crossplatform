@@ -344,6 +344,9 @@ const NOTIFICATION_OVERRIDE_SCRIPT: &str = r#"
 /// Watches the document `<title>` for an unread-count prefix like `(3)` and
 /// forwards changes to Rust via `invoke('update_unread_count', …)`.
 ///
+/// Also attempts to extract the first unread sender's name from the conversation
+/// list so the native notification can show the sender instead of "New message".
+///
 /// Injected at document-start; waits for DOM via `DOMContentLoaded`.
 const UNREAD_OBSERVER_SCRIPT: &str = r#"
 (function() {
@@ -352,9 +355,60 @@ const UNREAD_OBSERVER_SCRIPT: &str = r#"
         var match = title.match(/^\((\d+)\)/);
         return match ? parseInt(match[1], 10) : 0;
     }
+    // Try to read the first unread sender's name from the conversation list.
+    // Best-effort — returns '' on failure; Rust falls back to "New message".
+    function getFirstUnreadSenderName() {
+        try {
+            var links = document.querySelectorAll('a[href*="/t/"]');
+            for (var i = 0; i < Math.min(links.length, 10); i++) {
+                var link = links[i];
+                // 1) aria-label often includes "unread" and the name
+                var ariaLabel = link.getAttribute('aria-label') || '';
+                if (ariaLabel.toLowerCase().includes('unread')) {
+                    var namePart = ariaLabel.split(',')[0].trim();
+                    if (namePart && namePart.length >= 1 && namePart.length <= 80
+                            && !namePart.toLowerCase().includes('messenger')) {
+                        return namePart;
+                    }
+                }
+                // 2) Look for a small numeric unread badge inside the link's container
+                var parent = link.parentElement || link;
+                var spans = parent.querySelectorAll('span');
+                var hasUnreadBadge = false;
+                for (var s = 0; s < spans.length; s++) {
+                    if (/^\d{1,3}$/.test(spans[s].textContent.trim())
+                            && spans[s].children.length === 0) {
+                        hasUnreadBadge = true;
+                        break;
+                    }
+                }
+                if (hasUnreadBadge) {
+                    var nameSpans = link.querySelectorAll('span[dir="auto"]');
+                    for (var j = 0; j < nameSpans.length; j++) {
+                        var text = nameSpans[j].textContent.trim();
+                        if (text.length >= 1 && text.length <= 80 && !/^\d+$/.test(text)) {
+                            return text;
+                        }
+                    }
+                }
+            }
+            // 3) Fallback: first conversation link name
+            if (links.length > 0) {
+                var nameSpans2 = links[0].querySelectorAll('span[dir="auto"]');
+                for (var k = 0; k < nameSpans2.length; k++) {
+                    var t = nameSpans2[k].textContent.trim();
+                    if (t.length >= 1 && t.length <= 80 && !/^\d+$/.test(t)) {
+                        return t;
+                    }
+                }
+            }
+        } catch(e) {}
+        return '';
+    }
     function sendUnreadCount(count) {
         try {
-            window.__TAURI__.core.invoke('update_unread_count', { count: count });
+            var sender = count > 0 ? getFirstUnreadSenderName() : '';
+            window.__TAURI__.core.invoke('update_unread_count', { count: count, sender: sender });
         } catch(e) { console.error('[MessengerX] Failed to send unread count:', e); }
     }
     function setupObserver() {
@@ -1136,6 +1190,27 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
                 let _ = close_webview.hide();
+            }
+        });
+    }
+
+    // ------------------------------------------------------------------
+    // 4c-2. Cross-platform: reset notification guard when the window gains
+    //       focus so that the NEXT new message always triggers a notification.
+    //
+    //       Without this, once a notification fires (LAST_NOTIFIED_COUNT = N)
+    //       and the user opens the app without the count hitting 0 (or while
+    //       the title oscillates), the guard would stay at N and suppress all
+    //       future notifications until a hard reset.
+    // ------------------------------------------------------------------
+    {
+        webview.on_window_event(move |event| {
+            if let tauri::WindowEvent::Focused(true) = event {
+                crate::commands::LAST_NOTIFIED_COUNT
+                    .store(0, std::sync::atomic::Ordering::SeqCst);
+                log::info!(
+                    "[MessengerX][Notification] Window gained focus — LAST_NOTIFIED_COUNT reset"
+                );
             }
         });
     }

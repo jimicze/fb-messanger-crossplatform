@@ -78,7 +78,9 @@ static LAST_UNREAD_COUNT: AtomicU32 = AtomicU32::new(u32::MAX);
 
 /// Last unread count for which we already sent a notification.
 /// Prevents duplicate notifications when the count stays the same across multiple calls.
-static LAST_NOTIFIED_COUNT: AtomicU32 = AtomicU32::new(0);
+/// `pub(crate)` so that the window-focus handler in `lib.rs` can reset it when the
+/// user opens the window, allowing the next new message to trigger a notification.
+pub(crate) static LAST_NOTIFIED_COUNT: AtomicU32 = AtomicU32::new(0);
 
 // ---------------------------------------------------------------------------
 // IPC command implementations
@@ -137,11 +139,18 @@ pub fn send_notification(
 /// Guards against redundant updates: if `count` equals the last-known value
 /// the function returns immediately to avoid tray-icon flicker (B5).
 ///
-/// When the count **increases** and the main window is not focused a generic
-/// "New message" native notification is sent so the user is alerted even when
-/// Messenger's own JS `Notification` API is never triggered by WKWebView.
+/// When the count **increases** and the main window is not focused a native
+/// notification is sent.  The optional `sender` string (extracted by the JS
+/// observer from the conversation list) is used as the notification title so
+/// the user sees the sender's name instead of a generic "New message" string.
+///
+/// **Spam fix**: the `LAST_NOTIFIED_COUNT` guard is only reset to 0 when the
+/// window is focused.  Messenger's page title oscillates `"(1) Messenger" ↔
+/// "Messenger"` every ~3 s while a message is pending; resetting the guard on
+/// every transient count=0 would cause a new notification every 3 s.  We now
+/// only reset when the window is actually focused (= user is reading messages).
 #[tauri::command]
-pub fn update_unread_count(count: u32, app: AppHandle) -> Result<(), String> {
+pub fn update_unread_count(count: u32, sender: String, app: AppHandle) -> Result<(), String> {
     // Read old count BEFORE updating so we can detect an increase.
     let old_count = LAST_UNREAD_COUNT.load(Ordering::SeqCst);
 
@@ -171,15 +180,22 @@ pub fn update_unread_count(count: u32, app: AppHandle) -> Result<(), String> {
                 let effective_silent = !settings.notification_sound;
                 let locale = crate::services::locale::detect_locale();
                 let tr = crate::services::locale::get_translations(&locale);
+                // Use the sender name extracted by JS if available, otherwise fall back.
+                let notif_title = if !sender.trim().is_empty() {
+                    sender.clone()
+                } else {
+                    tr.notification_new_message.clone()
+                };
                 log::info!(
-                    "[MessengerX][Notification] unread count increased {} → {}; sending notification (silent={})",
+                    "[MessengerX][Notification] unread count increased {} → {}; sender={:?}; sending notification (silent={})",
                     real_old,
                     count,
+                    sender,
                     effective_silent,
                 );
                 if let Err(e) = crate::services::notification::show_notification(
                     &app,
-                    &tr.notification_new_message,
+                    &notif_title,
                     "",
                     "messenger-unread",
                     effective_silent,
@@ -191,9 +207,22 @@ pub fn update_unread_count(count: u32, app: AppHandle) -> Result<(), String> {
     }
 
     // When the user reads messages (count drops to 0) reset the notified counter
-    // so the next increase fires again.
+    // so the next increase fires again — BUT only when the window is focused.
+    // Messenger's page title oscillates "(N) Messenger" ↔ "Messenger" every ~3 s
+    // while a message is pending.  If we reset on every transient 0 while the
+    // window is backgrounded, we get a new notification on every oscillation cycle.
     if count == 0 {
-        LAST_NOTIFIED_COUNT.store(0, Ordering::SeqCst);
+        let is_focused = app
+            .get_webview_window("main")
+            .and_then(|w| w.is_focused().ok())
+            .unwrap_or(false);
+        if is_focused {
+            LAST_NOTIFIED_COUNT.store(0, Ordering::SeqCst);
+            log::info!(
+                "[MessengerX][Notification] count=0 while focused — reset LAST_NOTIFIED_COUNT"
+            );
+        }
+        // If not focused: transient oscillation — do NOT reset the guard.
     }
 
     // Update tray tooltip.
@@ -208,15 +237,20 @@ pub fn update_unread_count(count: u32, app: AppHandle) -> Result<(), String> {
     }
 
     // Update macOS Dock badge label.
+    // Do NOT clear the badge on a transient count=0 while the window is unfocused —
+    // the same oscillation that causes notification spam also causes badge flicker.
     #[cfg(target_os = "macos")]
     if let Some(webview) = app.get_webview_window("main") {
-        let label = if count > 0 {
-            Some(count.to_string())
-        } else {
-            None
-        };
-        if let Err(e) = webview.set_badge_label(label) {
-            log::warn!("[MessengerX][Badge] Failed to set dock badge: {e}");
+        let is_focused_for_badge = webview.is_focused().unwrap_or(false);
+        if count > 0 || is_focused_for_badge {
+            let label = if count > 0 {
+                Some(count.to_string())
+            } else {
+                None
+            };
+            if let Err(e) = webview.set_badge_label(label) {
+                log::warn!("[MessengerX][Badge] Failed to set dock badge: {e}");
+            }
         }
     }
 

@@ -159,6 +159,22 @@ pub fn show_notification(
 
 #[cfg(target_os = "macos")]
 fn initialize_macos_notification_center() -> Result<(), String> {
+    // `UNUserNotificationCenter::currentNotificationCenter()` requires a valid
+    // macOS `.app` bundle context.  When the binary runs directly from
+    // `target/debug/` (i.e. `tauri dev` / `cargo run`) it crashes with
+    // NSInternalInconsistencyException because `bundleProxyForCurrentProcess`
+    // is nil.  Detect this early and skip init gracefully.
+    let in_bundle = std::env::current_exe()
+        .map(|p| p.to_string_lossy().contains(".app/Contents/MacOS"))
+        .unwrap_or(false);
+    if !in_bundle {
+        log::info!(
+            "[MessengerX][Notification] Skipping UNUserNotificationCenter init: \
+             not running inside .app bundle (dev mode)"
+        );
+        return Ok(());
+    }
+
     let mtm = MainThreadMarker::new()
         .ok_or_else(|| "macOS notifications must be initialized on the main thread".to_string())?;
     let center = UNUserNotificationCenter::currentNotificationCenter();
@@ -196,6 +212,19 @@ fn show_via_user_notifications(
     tag: &str,
     silent: bool,
 ) -> Result<(), String> {
+    // Same bundle check as initialize(): UNUserNotificationCenter crashes
+    // outside of a proper .app bundle (dev mode).
+    let in_bundle = std::env::current_exe()
+        .map(|p| p.to_string_lossy().contains(".app/Contents/MacOS"))
+        .unwrap_or(false);
+    if !in_bundle {
+        log::info!(
+            "[MessengerX][Notification] Skipping macOS notification (no .app bundle — dev mode): \
+             title={title:?}"
+        );
+        return Ok(());
+    }
+
     log::info!(
         "[MessengerX][Notification] Trying macOS UNUserNotificationCenter: title={title:?} body_len={} tag={tag:?} silent={silent}",
         body.chars().count()
@@ -365,12 +394,19 @@ fn default_sound() -> &'static str {
 
 #[cfg(target_os = "macos")]
 fn build_macos_notification_identifier(tag: &str) -> String {
-    let prefix = if tag.is_empty() { "message" } else { tag };
-    let ts = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_nanos();
-    format!("messengerx-{prefix}-{ts}")
+    if !tag.is_empty() {
+        // Stable identifier: macOS UNUserNotificationCenter replaces an existing
+        // notification with the same identifier instead of stacking a new one.
+        // Using a timestamp here would cause every notification to stack up in
+        // Notification Center indefinitely.
+        format!("messengerx-{tag}")
+    } else {
+        let ts = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos();
+        format!("messengerx-message-{ts}")
+    }
 }
 
 #[cfg(test)]
@@ -404,7 +440,10 @@ mod tests {
         let tagged = build_macos_notification_identifier("thread-123");
         let untagged = build_macos_notification_identifier("");
 
-        assert!(tagged.starts_with("messengerx-thread-123-"));
+        // Tagged notifications use a stable ID (no timestamp) so macOS
+        // replaces the previous notification instead of stacking.
+        assert_eq!(tagged, "messengerx-thread-123");
+        // Untagged notifications still get a unique timestamp suffix.
         assert!(untagged.starts_with("messengerx-message-"));
         assert_ne!(tagged, untagged);
     }
