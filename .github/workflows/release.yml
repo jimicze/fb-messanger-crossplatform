@@ -220,7 +220,7 @@ jobs:
           tag_name: ${{ steps.resolve-tag.outputs.name }}
           name: 'Messenger X ${{ steps.resolve-tag.outputs.name }}'
           body_path: /tmp/release_body.md
-          draft: false
+          draft: true
           prerelease: false
 
   # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -580,6 +580,10 @@ jobs:
           gh release delete-asset "$TAG" latest.json --repo "$REPO" --yes 2>/dev/null || true
           gh release upload "$TAG" latest.json --repo "$REPO"
 
+          # Publish only after latest.json exists, so updater clients never see
+          # a "latest" release that returns 404 for the updater manifest.
+          gh release edit "$TAG" --repo "$REPO" --draft=false --latest
+
           echo "Done: published complete updater manifest for ${TAG}"
           rm -rf "$WORK"
 
@@ -690,6 +694,5 @@ jobs:
             --submit
 
           Write-Host "winget manifest submitted for ${VERSION}"
-
 
 
