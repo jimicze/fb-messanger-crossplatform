@@ -990,6 +990,33 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app_handle, event| {
+            // Windows 11 (especially on some ARM devices) can ignore a focus
+            // request if it happens too early during setup.  Apply the
+            // startup foreground workaround after the runtime reports Ready.
+            #[cfg(target_os = "windows")]
+            if let tauri::RunEvent::Ready = event {
+                let settings = services::auth::load_settings(app_handle).unwrap_or_default();
+                if !settings.start_minimized {
+                    if let Some(window) = app_handle.get_webview_window("main") {
+                        let _ = window.show();
+                        let _ = window.unminimize();
+                        let _ = window.set_focus();
+                    }
+
+                    // A short delayed retry helps devices where activation is
+                    // still ignored on the first attempt.
+                    let delayed_handle = app_handle.clone();
+                    std::thread::spawn(move || {
+                        std::thread::sleep(std::time::Duration::from_millis(350));
+                        if let Some(window) = delayed_handle.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.unminimize();
+                            let _ = window.set_focus();
+                        }
+                    });
+                }
+            }
+
             // macOS: clicking the Dock icon while all windows are hidden should
             // bring the main window back (applicationShouldHandleReopen).
             #[cfg(target_os = "macos")]
@@ -1183,17 +1210,6 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             true
         })
         .build()?;
-
-    // Windows 11 (notably on some ARM devices) may leave a freshly created
-    // WebView window in a non-activated state until the first user click.
-    // Explicitly foreground the main window on startup when we are not in
-    // "start minimized" mode.
-    #[cfg(target_os = "windows")]
-    if !settings.start_minimized {
-        let _ = webview.show();
-        let _ = webview.unminimize();
-        let _ = webview.set_focus();
-    }
 
     // ------------------------------------------------------------------
     // 4b. Apply persisted zoom level via the native WebView API.
