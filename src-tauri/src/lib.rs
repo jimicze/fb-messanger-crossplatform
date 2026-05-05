@@ -902,18 +902,15 @@ fn save_check_timestamp(handle: &tauri::AppHandle) {
 }
 
 /// Linux/AppImage startup guard:
-/// force GIO to use local/in-process backends so GLib does not try to load
-/// host `gio/modules` plugins that may be ABI-incompatible with the bundled
-/// runtime inside the AppImage (observed on Ubuntu 24 ARM).
+/// prefer local/in-process backends that avoid common host integration issues,
+/// while still allowing bundled GIO modules (such as glib-networking's TLS
+/// backend) to load normally inside the AppImage.
 #[cfg(target_os = "linux")]
 const LINUX_APPIMAGE_ENV_OVERRIDES: &[(&str, &str)] = &[
     // Skip GVFS (host module) and use plain local file backend.
     ("GIO_USE_VFS", "local"),
     // Avoid loading host dconf backend when bundled GLib is older/newer.
     ("GSETTINGS_BACKEND", "memory"),
-    // Prevent host GIO module probing (gvfs/libproxy/dconf ABI mismatch).
-    ("GIO_MODULE_DIR", "/nonexistent"),
-    ("GIO_EXTRA_MODULES", "/nonexistent"),
 ];
 
 #[cfg(target_os = "linux")]
