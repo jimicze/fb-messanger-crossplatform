@@ -901,6 +901,36 @@ fn save_check_timestamp(handle: &tauri::AppHandle) {
     let _ = services::auth::save_settings(handle, &s);
 }
 
+/// Linux/AppImage startup guard:
+/// force GIO to use local/in-process backends so GLib does not try to load
+/// host `gio/modules` plugins that may be ABI-incompatible with the bundled
+/// runtime inside the AppImage (observed on Ubuntu 24 ARM).
+#[cfg(target_os = "linux")]
+const LINUX_APPIMAGE_ENV_OVERRIDES: &[(&str, &str)] = &[
+    // Skip GVFS (host module) and use plain local file backend.
+    ("GIO_USE_VFS", "local"),
+    // Avoid loading host dconf backend when bundled GLib is older/newer.
+    ("GSETTINGS_BACKEND", "memory"),
+    // Prevent host GIO module probing (gvfs/libproxy/dconf ABI mismatch).
+    ("GIO_MODULE_DIR", "/nonexistent"),
+    ("GIO_EXTRA_MODULES", "/nonexistent"),
+];
+
+#[cfg(target_os = "linux")]
+fn configure_linux_runtime_env() {
+    let is_appimage =
+        std::env::var_os("APPIMAGE").is_some() || std::env::var_os("APPDIR").is_some();
+    if !is_appimage {
+        return;
+    }
+
+    for (key, value) in LINUX_APPIMAGE_ENV_OVERRIDES {
+        if std::env::var_os(key).is_none() {
+            std::env::set_var(key, value);
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Application entry point
 // ---------------------------------------------------------------------------
@@ -911,6 +941,9 @@ fn save_check_timestamp(handle: &tauri::AppHandle) {
 /// scripts and navigation policy, sets up a system-tray icon, and starts the
 /// periodic snapshot timer.
 pub fn run() {
+    #[cfg(target_os = "linux")]
+    configure_linux_runtime_env();
+
     tauri::Builder::default()
         .plugin(
             tauri_plugin_log::Builder::new()
@@ -2587,6 +2620,36 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(target_os = "linux")]
+    mod linux_runtime {
+        use super::super::LINUX_APPIMAGE_ENV_OVERRIDES;
+
+        #[test]
+        fn appimage_runtime_overrides_include_gio_guardrails() {
+            let keys: Vec<&str> = LINUX_APPIMAGE_ENV_OVERRIDES
+                .iter()
+                .map(|(key, _)| *key)
+                .collect();
+
+            assert!(
+                keys.contains(&"GIO_USE_VFS"),
+                "Linux AppImage runtime overrides must set GIO_USE_VFS"
+            );
+            assert!(
+                keys.contains(&"GSETTINGS_BACKEND"),
+                "Linux AppImage runtime overrides must set GSETTINGS_BACKEND"
+            );
+            assert!(
+                keys.contains(&"GIO_MODULE_DIR"),
+                "Linux AppImage runtime overrides must set GIO_MODULE_DIR"
+            );
+            assert!(
+                keys.contains(&"GIO_EXTRA_MODULES"),
+                "Linux AppImage runtime overrides must set GIO_EXTRA_MODULES"
+            );
+        }
+    }
+
     // The visibility-override script is Linux-only; gate the tests accordingly.
     #[cfg(target_os = "linux")]
     mod visibility_script {
