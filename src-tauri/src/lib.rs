@@ -991,13 +991,14 @@ pub fn run() {
         .expect("error while building tauri application")
         .run(|app_handle, event| {
             // Windows 11 (especially on some ARM devices) can ignore a focus
-            // request if it happens too early during setup.  Apply the
-            // startup foreground workaround after the runtime reports Ready.
+            // request if it happens too early during setup. Apply the
+            // startup foreground workaround after the runtime reports Ready,
+            // but only for a window that setup has already decided should be
+            // visible.
             #[cfg(target_os = "windows")]
             if let tauri::RunEvent::Ready = event {
-                let settings = services::auth::load_settings(app_handle).unwrap_or_default();
-                if !settings.start_minimized {
-                    if let Some(window) = app_handle.get_webview_window("main") {
+                if let Some(window) = app_handle.get_webview_window("main") {
+                    if matches!(window.is_visible(), Ok(true)) {
                         let _ = window.show();
                         let _ = window.unminimize();
                         let _ = window.set_focus();
