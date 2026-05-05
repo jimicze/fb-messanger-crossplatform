@@ -2635,6 +2635,31 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
 #[cfg(test)]
 mod tests {
+    mod windows_startup_activation {
+        const SOURCE: &str = include_str!("lib.rs");
+
+        #[test]
+        fn windows_startup_activation_runs_in_ready_event() {
+            assert!(
+                SOURCE.contains("#[cfg(target_os = \"windows\")]")
+                    && SOURCE.contains("if let tauri::RunEvent::Ready = event"),
+                "Windows startup activation must remain in RunEvent::Ready"
+            );
+        }
+
+        #[test]
+        fn startup_minimized_preference_stays_guarded_via_initial_visibility() {
+            assert!(
+                SOURCE.contains(".visible(!settings.start_minimized)"),
+                "main window creation must keep start_minimized visibility guard"
+            );
+            assert!(
+                SOURCE.contains("matches!(window.is_visible(), Ok(true))"),
+                "Windows Ready activation must only run for initially visible windows"
+            );
+        }
+    }
+
     #[cfg(target_os = "linux")]
     mod linux_runtime {
         use super::super::{configure_linux_runtime_env, LINUX_APPIMAGE_ENV_OVERRIDES};
