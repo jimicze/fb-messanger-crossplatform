@@ -925,6 +925,8 @@ fn configure_linux_runtime_env() {
     }
 
     for (key, value) in LINUX_APPIMAGE_ENV_OVERRIDES {
+        // Respect an explicit user/system override (e.g. launch script) while
+        // still applying safe defaults for untouched environments.
         if std::env::var_os(key).is_none() {
             std::env::set_var(key, value);
         }
