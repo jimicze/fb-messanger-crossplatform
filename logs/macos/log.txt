@@ -1,0 +1,388 @@
+Andreass-MacBook-Pro16:fb-messanger-crossplatform lasakondrej$ npm run tauri:dev
+
+> messengerx@1.3.22 tauri:dev
+> tauri dev
+
+     Running DevCommand (`cargo  run --no-default-features --color always --`)
+        Info Watching /Users/lasakondrej/Projects/fb-messanger-crossplatform/src-tauri for changes...
+   Compiling messengerx v1.3.22 (/Users/lasakondrej/Projects/fb-messanger-crossplatform/src-tauri)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 7.37s
+     Running `target/debug/messengerx`
+[2026-05-06][22:46:12][tao::platform_impl::platform::app_delegate][TRACE] Triggered `applicationDidFinishLaunching`
+[2026-05-06][22:46:12][messengerx_lib][INFO] [MessengerX][Boot] setup_app start
+[2026-05-06][22:46:12][messengerx_lib::services::notification][INFO] [MessengerX][Notification] Skipping UNUserNotificationCenter init: not running inside .app bundle (dev mode — osascript fallback will be used)
+[2026-05-06][22:46:12][tao::platform_impl::platform::window][TRACE] Creating new window
+[2026-05-06][22:46:12][tao::platform_impl::platform::view][TRACE] Triggered `viewDidMoveToWindow`
+[2026-05-06][22:46:12][tao::platform_impl::platform::view][TRACE] Completed `viewDidMoveToWindow`
+[2026-05-06][22:46:12][tao::platform_impl::platform::view][TRACE] Triggered `validAttributesForMarkedText`
+[2026-05-06][22:46:12][tao::platform_impl::platform::view][TRACE] Completed `validAttributesForMarkedText`
+[2026-05-06][22:46:12][tao::platform_impl::platform::view][TRACE] Triggered `validAttributesForMarkedText`
+[2026-05-06][22:46:12][tao::platform_impl::platform::view][TRACE] Completed `validAttributesForMarkedText`
+[2026-05-06][22:46:12][tao::platform_impl::platform::view][TRACE] Triggered `validAttributesForMarkedText`
+[2026-05-06][22:46:12][tao::platform_impl::platform::view][TRACE] Completed `validAttributesForMarkedText`
+[2026-05-06][22:46:12][tao::platform_impl::platform::view][TRACE] Triggered `validAttributesForMarkedText`
+[2026-05-06][22:46:12][tao::platform_impl::platform::view][TRACE] Completed `validAttributesForMarkedText`
+[2026-05-06][22:46:12][tao::platform_impl::platform::view][TRACE] Triggered `validAttributesForMarkedText`
+[2026-05-06][22:46:12][tao::platform_impl::platform::view][TRACE] Completed `validAttributesForMarkedText`
+[2026-05-06][22:46:12][tao::platform_impl::platform::window][TRACE] Locked shared state in `set_fullscreen`
+[2026-05-06][22:46:12][tao::platform_impl::platform::window][TRACE] Unlocked shared state in `set_fullscreen`
+[2026-05-06][22:46:12][tao::platform_impl::platform::view][TRACE] Triggered `validAttributesForMarkedText`
+[2026-05-06][22:46:12][tao::platform_impl::platform::view][TRACE] Completed `validAttributesForMarkedText`
+[2026-05-06][22:46:12][tao::platform_impl::platform::view][TRACE] Triggered `validAttributesForMarkedText`
+[2026-05-06][22:46:12][tao::platform_impl::platform::view][TRACE] Completed `validAttributesForMarkedText`
+[2026-05-06][22:46:12][tao::platform_impl::platform::view][TRACE] Triggered `validAttributesForMarkedText`
+[2026-05-06][22:46:12][tao::platform_impl::platform::view][TRACE] Completed `validAttributesForMarkedText`
+[2026-05-06][22:46:12][tao::platform_impl::platform::view][TRACE] Triggered `validAttributesForMarkedText`
+[2026-05-06][22:46:12][tao::platform_impl::platform::view][TRACE] Completed `validAttributesForMarkedText`
+[2026-05-06][22:46:12][tao::platform_impl::platform::view][TRACE] Triggered `validAttributesForMarkedText`
+[2026-05-06][22:46:12][tao::platform_impl::platform::view][TRACE] Completed `validAttributesForMarkedText`
+[2026-05-06][22:46:12][tao::platform_impl::platform::view][TRACE] Triggered `viewDidMoveToWindow`
+[2026-05-06][22:46:12][tao::platform_impl::platform::view][TRACE] Completed `viewDidMoveToWindow`
+[2026-05-06][22:46:12][tao::platform_impl::platform::window][TRACE] Locked shared state in `set_fullscreen`
+[2026-05-06][22:46:12][tao::platform_impl::platform::window][TRACE] Unlocked shared state in `set_fullscreen`
+[2026-05-06][22:46:12][messengerx_lib][INFO] [MessengerX][Boot] webview window built (online=true, t=92ms)
+[2026-05-06][22:46:12][messengerx_lib][INFO] [MessengerX][Boot] setup_app complete (t=95ms)
+[2026-05-06][22:46:12][messengerx_lib][INFO] [MessengerX][Boot] RunEvent::Ready fired
+[2026-05-06][22:46:12][tao::platform_impl::platform::app_delegate][TRACE] Completed `applicationDidFinishLaunching`
+[2026-05-06][22:46:12][tao::platform_impl::platform::window_delegate][TRACE] Triggered `windowDidMove:`
+[2026-05-06][22:46:12][tao::platform_impl::platform::window_delegate][TRACE] Completed `windowDidMove:`
+[2026-05-06][22:46:12][tao::platform_impl::platform::window_delegate][TRACE] Triggered `windowDidBecomeKey:`
+[2026-05-06][22:46:12][tao::platform_impl::platform::window_delegate][TRACE] Completed `windowDidBecomeKey:`
+[2026-05-06][22:46:12][messengerx_lib][INFO] [MessengerX][Notification] Window gained focus — notification state reset to Idle
+[2026-05-06][22:46:12][messengerx_lib][INFO] [MessengerX] on_navigation: host=www.messenger.com url=https://www.messenger.com/
+2026-05-07 00:46:12.557 messengerx[66686:40420178] +[IMKClient subclass]: chose IMKClient_Modern
+2026-05-07 00:46:12.557 messengerx[66686:40420178] +[IMKInputSession subclass]: chose IMKInputSession_Modern
+[2026-05-06][22:46:13][messengerx_lib][INFO] [MessengerX] on_navigation: host=www.messenger.com url=https://www.messenger.com/e2ee/t/7624198980981504/
+[2026-05-06][22:46:13][messengerx_lib::commands][INFO] [MessengerX][JS] [NotificationJS] window.Notification override installed
+[2026-05-06][22:46:13][messengerx_lib::commands][INFO] [MessengerX][JS] [NotificationJS] ServiceWorkerRegistration.prototype.showNotification hooked
+[2026-05-06][22:46:13][messengerx_lib::commands][INFO] [MessengerX][JS] [NotificationJS] [SW.existing] count=0
+[2026-05-06][22:46:13][messengerx_lib::commands][INFO] [MessengerX][JS] [NotificationJS] navigator.serviceWorker.register hooked
+[2026-05-06][22:46:13][messengerx_lib::commands][INFO] [MessengerX][JS] [NotificationJS] [SW.controller@init] none
+[2026-05-06][22:46:13][messengerx_lib::commands][INFO] [MessengerX][JS] [NotificationJS] navigator.permissions.query hooked
+[2026-05-06][22:46:13][messengerx_lib::commands][INFO] [MessengerX][JS] [NotificationJS] postMessage listener installed (main frame)
+[2026-05-06][22:46:13][messengerx_lib::commands][INFO] [MessengerX][JS] [NotificationJS] init complete (v1.3.22 A+B+C+D)
+[2026-05-06][22:46:13][messengerx_lib::commands][INFO] [MessengerX][JS] [DiagJS] [WS] proxy installed
+[2026-05-06][22:46:13][messengerx_lib::commands][INFO] [MessengerX][JS] [DiagJS] [HTTP] proxies installed
+[2026-05-06][22:46:13][messengerx_lib::commands][INFO] [MessengerX][JS] [DiagJS] [Init] diagnostic telemetry v=1.3.22 ready
+[2026-05-06][22:46:13][messengerx_lib::commands][INFO] [MessengerX][JS] window.open override + click interceptor installed
+[2026-05-06][22:46:14][messengerx_lib][INFO] [MessengerX] on_navigation: host=www.fbsbx.com url=https://www.fbsbx.com/maw_proxy_page/?__cci=FQARESIVAhn1jQEC5ALSAvoCJC4%2BQEZISkxOUFRYXF5gYmRqbHJ0eHqAAYIBhAGGAYgBigGMAZQBnAGeAaABpAG4Ac4B2gLeAeAB4gHqAewB7gHwAfQB%2FgGAAoYClgKaAqACsAIEBgoMDhASFhgcHiAiJigqLDAyNjg6PLICQkTqAmZucHa%2BAnyOAZABwgKSAZYBmAGaAeYCogHIAroCqAGsAa4BsAGyAbQBzgK6Ab4B1gLAAcIBygLGAcgBygHMAcwC0AHUAdgB2gHoAtQC8gLwAuQB6AH4AfoB4AL8AYoCxgKMAo4CkALYApgCogIYDU1lc3Nlbmdlckhvc3QYD21lc3NlbmdlcmRvdGNvbRgjWE1lc3NlbmdlckRvdENvbUNvbWV0TWFpbkNvbnRyb2xsZXIA.AarJd7qY1yf_Y-8RU7BrDaysrdVsFlckpzJoze0crVZutIJO
+[2026-05-06][22:46:14][messengerx_lib::commands][INFO] [MessengerX][JS] [DiagJS] [XHR] POST /api/graphql/ -> 200
+[2026-05-06][22:46:15][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] resetActivityState — seq/snapshot/sig/threadMut cleared
+[2026-05-06][22:46:15][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Unread] immediate count=0 sender="" activitySig=""
+[2026-05-06][22:46:15][messengerx_lib::commands][DEBUG] [MessengerX][Notification][FocusProbe] focused=true minimized=Some(false) visible_api=Some(true)
+[2026-05-06][22:46:15][messengerx_lib::commands][INFO] [MessengerX][Notification][DECISION] count=0 old_count=4294967295 focused=true enabled=true reason=idle-count-zero fire=false clear_badge=true prev_count=0 count_increased=false sig_changed=false elapsed=None activity_sig="" state_after=Idle
+[2026-05-06][22:46:15][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] sidebar observer installed on navigation
+[2026-05-06][22:46:15][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [ThreadDiag #1] role=main:1 role=presentation:0 messages_table:0 shadowHosts:0 root=main
+[2026-05-06][22:46:15][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] thread observer installed on main
+[2026-05-06][22:46:15][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] body-level fallback observer installed
+[2026-05-06][22:46:15][messengerx_lib::commands][INFO] [MessengerX][JS] [DiagJS] [PageLoaded] {"v":"1.3.22","stage":"domcontentloaded","t":1511,"url":"https://www.messenger.com/e2ee/t/7624198980981504/","ua":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)","visible":"visible","focus":true}
+[2026-05-06][22:46:15][messengerx_lib::commands][INFO] [MessengerX][JS] [DiagJS] [PageLoaded] {"v":"1.3.22","stage":"load","t":1517,"url":"https://www.messenger.com/e2ee/t/7624198980981504/","ua":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)","visible":"visible","focus":true}
+[2026-05-06][22:46:15][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] risingEdge bucket=889053787
+[2026-05-06][22:46:15][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] 0 candidates count=1 links=0
+[2026-05-06][22:46:15][messengerx_lib::commands][INFO] [MessengerX][JS] [DiagJS] [XHR] POST /api/graphql/ -> 200
+[2026-05-06][22:46:15][messengerx_lib::commands][INFO] [MessengerX][JS] [DiagJS] [XHR] POST /api/graphql/ -> 200
+[2026-05-06][22:46:15][messengerx_lib::commands][INFO] [MessengerX][JS] [DiagJS] [XHR] POST /api/graphql/ -> 200
+[2026-05-06][22:46:15][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] snapshot candidates=5 snapshot="Jouda Mala Brokolice|pokec týmu Sound of Society|Jouda Mala Brokolice|Jouda Mala"
+[2026-05-06][22:46:15][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] baseline established count=1 snapshot="Jouda Mala Brokolice|pokec týmu Sound of Society|Jouda Mala " baselineSig="1:0:Jouda Mala Brokolice|pokec týmu Sound of"
+[2026-05-06][22:46:15][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Sender] {"totalLinks":59,"scanned":5,"unreadHits":1,"rejected":["i=0 notUnread aria=n badge=n bold=n dot=n","i=1 notUnread aria=n badge=n bold=n dot=n","i=2 notUnread aria=n badge=n bold=n dot=n","i=3 notUnread aria=n badge=n bold=n dot=n"],"picked":"Jouda Mala Brokolice"} result="Jouda Mala Brokolice"
+[2026-05-06][22:46:15][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Unread] delayed count=1 sender="Jouda Mala Brokolice" activitySig="1:0:Jouda Mala Brokolice|pokec týmu Sound of"
+[2026-05-06][22:46:15][messengerx_lib::commands][DEBUG] [MessengerX][Notification][FocusProbe] focused=true minimized=Some(false) visible_api=Some(true)
+[2026-05-06][22:46:15][messengerx_lib::commands][INFO] [MessengerX][Notification][DECISION] count=1 old_count=0 focused=true enabled=true reason=idle-focused-skip fire=false clear_badge=false prev_count=0 count_increased=false sig_changed=false elapsed=None activity_sig="1:0:Jouda Mala Brokolice|pokec týmu Sound of" state_after=Idle
+[2026-05-06][22:46:15][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] resetActivityState — seq/snapshot/sig/threadMut cleared
+[2026-05-06][22:46:15][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Unread] immediate count=0 sender="" activitySig=""
+[2026-05-06][22:46:15][messengerx_lib::commands][DEBUG] [MessengerX][Notification][FocusProbe] focused=true minimized=Some(false) visible_api=Some(true)
+[2026-05-06][22:46:15][messengerx_lib::commands][INFO] [MessengerX][Notification][DECISION] count=0 old_count=1 focused=true enabled=true reason=idle-count-zero fire=false clear_badge=true prev_count=0 count_increased=false sig_changed=false elapsed=None activity_sig="" state_after=Idle
+[2026-05-06][22:46:15][messengerx_lib::commands][INFO] [MessengerX][JS] [DiagJS] [XHR] POST /api/graphql/ -> 200
+[2026-05-06][22:46:15][messengerx_lib::commands][INFO] [MessengerX][JS] [DiagJS] [XHR] POST /api/graphql/ -> 200
+[2026-05-06][22:46:16][messengerx_lib::commands][INFO] [MessengerX][JS] [DiagJS] [XHR] POST /api/graphql/ -> 200
+[2026-05-06][22:46:16][messengerx_lib::commands][INFO] [MessengerX][JS] [DiagJS] [XHR] POST /api/graphql/ -> 200
+[2026-05-06][22:46:17][messengerx_lib::commands][INFO] [MessengerX][JS] [DiagJS] [XHR] POST /api/graphql/ -> 200
+[2026-05-06][22:46:18][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [ThreadMut] batch size=7 source=body-fallback count=0
+[2026-05-06][22:46:19][messengerx_lib::commands][INFO] [MessengerX][JS] [DiagJS] [WS] [{"url":"gateway.messenger.com/ws/rpsignaling?x-dgw-appid=77202111287","out":1,"in":4,"bytes":46},{"url":"edge-chat.messenger.com/chat?region=odn&sid=471008936984575&","out":70,"in":140,"bytes":1022542},{"url":"gateway.messenger.com/ws/streamcontroller?x-dgw-appid=772021","out":24,"in":50,"bytes":4140},{"url":"gateway.messenger.com/ws/realtime?x-dgw-appid=77202111287187","out":64,"in":130,"bytes":165188},{"url":"edge-chat.messenger.com/chat?region=odn&sid=6551691482628095","out":2,"in":2,"bytes":472}]
+[2026-05-06][22:46:20][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [ThreadMut] batch size=3 source=body-fallback count=0
+[2026-05-06][22:46:22][tao::platform_impl::platform::window_delegate][TRACE] Triggered `windowDidResignKey:`
+[2026-05-06][22:46:22][tao::platform_impl::platform::window_delegate][TRACE] Completed `windowDidResignKey:`
+[2026-05-06][22:46:23][tao::platform_impl::platform::window_delegate][TRACE] Triggered `windowDidBecomeKey:`
+[2026-05-06][22:46:23][tao::platform_impl::platform::window_delegate][TRACE] Completed `windowDidBecomeKey:`
+[2026-05-06][22:46:23][messengerx_lib][INFO] [MessengerX][Notification] Window gained focus — notification state reset to Idle
+[2026-05-06][22:46:25][tao::platform_impl::platform::window_delegate][TRACE] Triggered `windowDidResignKey:`
+[2026-05-06][22:46:25][tao::platform_impl::platform::window_delegate][TRACE] Completed `windowDidResignKey:`
+[2026-05-06][22:46:25][messengerx_lib::commands][INFO] [MessengerX][JS] [DiagJS] [WS] [{"url":"gateway.messenger.com/ws/realtime?x-dgw-appid=77202111287187","out":6,"in":12,"bytes":27612},{"url":"gateway.messenger.com/ws/rpsignaling?x-dgw-appid=77202111287","out":1,"in":2,"bytes":3}]
+[2026-05-06][22:46:31][messengerx_lib::commands][INFO] [MessengerX][JS] [DiagJS] [WS] [{"url":"gateway.messenger.com/ws/streamcontroller?x-dgw-appid=772021","out":1,"in":2,"bytes":3},{"url":"gateway.messenger.com/ws/realtime?x-dgw-appid=77202111287187","out":2,"in":4,"bytes":4888},{"url":"edge-chat.messenger.com/chat?region=odn&sid=471008936984575&","out":1,"in":1,"bytes":4},{"url":"edge-chat.messenger.com/chat?region=odn&sid=6551691482628095","out":1,"in":1,"bytes":4}]
+[2026-05-06][22:46:39][messengerx_lib::commands][INFO] [MessengerX][JS] [DiagJS] [WS] [{"url":"gateway.messenger.com/ws/rpsignaling?x-dgw-appid=77202111287","out":1,"in":2,"bytes":3},{"url":"gateway.messenger.com/ws/streamcontroller?x-dgw-appid=772021","out":1,"in":2,"bytes":3},{"url":"gateway.messenger.com/ws/realtime?x-dgw-appid=77202111287187","out":1,"in":2,"bytes":3}]
+[2026-05-06][22:46:43][messengerx_lib::commands][INFO] [MessengerX][JS] [DiagJS] [FocusHB] {"hasFocus":false,"visibility":"hidden","hidden":true,"url":"/e2ee/t/7624198980981504/"}
+[2026-05-06][22:46:43][messengerx_lib::commands][INFO] [MessengerX][JS] [NotificationJS] [health] permission=granted __native__=true visibility=hidden hasFocus=false sw_regs=0 sw_ctrl=none
+[2026-05-06][22:46:45][messengerx_lib::commands][INFO] [MessengerX][JS] [DiagJS] [WS] [{"url":"gateway.messenger.com/ws/realtime?x-dgw-appid=77202111287187","out":2,"in":4,"bytes":5194},{"url":"gateway.messenger.com/ws/rpsignaling?x-dgw-appid=77202111287","out":1,"in":2,"bytes":3}]
+[2026-05-06][22:46:50][messengerx_lib::commands][INFO] [MessengerX][JS] [DiagJS] [WS] [{"url":"edge-chat.messenger.com/chat?region=odn&sid=471008936984575&","out":1,"in":1,"bytes":4},{"url":"edge-chat.messenger.com/chat?region=odn&sid=6551691482628095","out":1,"in":1,"bytes":4},{"url":"gateway.messenger.com/ws/streamcontroller?x-dgw-appid=772021","out":1,"in":2,"bytes":3},{"url":"gateway.messenger.com/ws/realtime?x-dgw-appid=77202111287187","out":1,"in":0,"bytes":1}]
+[2026-05-06][22:46:55][messengerx_lib::commands][INFO] [MessengerX][JS] [DiagJS] [WS] [{"url":"gateway.messenger.com/ws/realtime?x-dgw-appid=77202111287187","out":0,"in":2,"bytes":2},{"url":"gateway.messenger.com/ws/rpsignaling?x-dgw-appid=77202111287","out":1,"in":2,"bytes":3}]
+[2026-05-06][22:46:57][messengerx_lib::commands][INFO] [MessengerX][JS] [DiagJS] [XHR] POST /api/graphql/ -> 200
+[2026-05-06][22:46:57][messengerx_lib::commands][INFO] [MessengerX][JS] [DiagJS] [XHR] POST /api/graphql/ -> 200
+[2026-05-06][22:46:57][messengerx_lib::commands][INFO] [MessengerX][JS] [DiagJS] [XHR] POST /api/graphql/ -> 200
+[2026-05-06][22:46:59][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] risingEdge bucket=889053809
+[2026-05-06][22:46:59][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] snapshot candidates=5 snapshot="Jouda Mala Brokolice|pokec týmu Sound of Society|Jouda Mala Brokolice|Jouda Mala"
+[2026-05-06][22:46:59][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] baseline established count=1 snapshot="Jouda Mala Brokolice|pokec týmu Sound of Society|Jouda Mala " baselineSig="1:0:Jouda Mala Brokolice|pokec týmu Sound of"
+[2026-05-06][22:46:59][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] snapshot candidates=5 snapshot="Jouda Mala Brokolice|pokec týmu Sound of Society|Jouda Mala Brokolice|Jouda Mala"
+[2026-05-06][22:46:59][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Sender] {"totalLinks":63,"scanned":5,"unreadHits":1,"rejected":["i=0 notUnread aria=n badge=n bold=n dot=n","i=1 notUnread aria=n badge=n bold=n dot=n","i=2 notUnread aria=n badge=n bold=n dot=n","i=3 notUnread aria=n badge=n bold=n dot=n"],"picked":"Jouda Mala Brokolice"} result="Jouda Mala Brokolice"
+[2026-05-06][22:46:59][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Unread] delayed count=1 sender="Jouda Mala Brokolice" activitySig="1:0:Jouda Mala Brokolice|pokec týmu Sound of"
+[2026-05-06][22:46:59][messengerx_lib::commands][DEBUG] [MessengerX][Notification][FocusProbe] focused=false minimized=Some(false) visible_api=Some(true)
+[2026-05-06][22:46:59][messengerx_lib::commands][INFO] [MessengerX][Notification][DECISION] count=1 old_count=0 focused=false enabled=true reason=idle-count-positive fire=true clear_badge=false prev_count=0 count_increased=true sig_changed=true elapsed=None activity_sig="1:0:Jouda Mala Brokolice|pokec týmu Sound of" state_after=Notified { count: 1, sig: "1:0:Jouda Mala Brokolice|pokec týmu Sound of", fired_at_secs: 1778107619 }
+[2026-05-06][22:46:59][messengerx_lib::commands][INFO] [MessengerX][Notification] firing notification: count 0 → 1; reason=idle-count-positive count_increased=true sig_changed=true; sender="Jouda Mala Brokolice" activity_sig="1:0:Jouda Mala Brokolice|pokec týmu Sound of" silent=false
+[2026-05-06][22:46:59][messengerx_lib::services::notification][INFO] [MessengerX][Notification] show_notification start: title="Jouda Mala Brokolice" body_len=0 tag="messenger-unread" silent=false
+[2026-05-06][22:46:59][messengerx_lib::services::notification][INFO] [MessengerX][Notification] bundle delegation unavailable (debug .app bundle version mismatch: bundle="1.3.17" current="1.3.22"; run `npm run tauri build -- --debug` once to refresh the notification helper); falling back to osascript
+[2026-05-06][22:46:59][messengerx_lib::services::notification][INFO] [MessengerX][Notification][OSASCRIPT FALLBACK] Dispatching macOS notification via osascript: reason=dev-mode-outside-app-bundle title="Jouda Mala Brokolice" silent=false script_len=57 exe="/Users/lasakondrej/Projects/fb-messanger-crossplatform/src-tauri/target/debug/messengerx" pid=66686 TERM_PROGRAM="ghostty" TERM="xterm-ghostty"
+[2026-05-06][22:46:59][messengerx_lib::services::notification][INFO] [MessengerX][Notification][OSASCRIPT FALLBACK] osascript succeeded: exit_code=0 stdout="" stderr=""
+[2026-05-06][22:46:59][messengerx_lib::services::notification][INFO] [MessengerX][Notification] macOS notification enqueued successfully
+[2026-05-06][22:47:00][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] zeroTimer scheduled (7 s)
+[2026-05-06][22:47:00][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Unread] immediate count=0 sender="" activitySig=""
+[2026-05-06][22:47:00][messengerx_lib::commands][DEBUG] [MessengerX][Notification][FocusProbe] focused=false minimized=Some(false) visible_api=Some(true)
+[2026-05-06][22:47:00][messengerx_lib::commands][INFO] [MessengerX][Notification][DECISION] count=0 old_count=1 focused=false enabled=true reason=zero-pending-start fire=false clear_badge=false prev_count=1 count_increased=false sig_changed=false elapsed=Some(1) activity_sig="" state_after=ZeroPending { prev_count: 1, prev_sig: "1:0:Jouda Mala Brokolice|pokec týmu Sound of", prev_fired_at_secs: 1778107619, zero_since_secs: 1778107620 }
+[2026-05-06][22:47:01][messengerx_lib::commands][INFO] [MessengerX][JS] [DiagJS] [WS] [{"url":"gateway.messenger.com/ws/streamcontroller?x-dgw-appid=772021","out":6,"in":12,"bytes":691},{"url":"edge-chat.messenger.com/chat?region=odn&sid=471008936984575&","out":2,"in":8,"bytes":3768},{"url":"gateway.messenger.com/ws/realtime?x-dgw-appid=77202111287187","out":2,"in":4,"bytes":4756},{"url":"edge-chat.messenger.com/chat?region=odn&sid=6551691482628095","out":1,"in":0,"bytes":2}]
+[2026-05-06][22:47:02][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] risingEdge bucket=889053811
+[2026-05-06][22:47:02][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] zeroTimer cancelled (count went positive)
+[2026-05-06][22:47:02][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] snapshot candidates=5 snapshot="Jouda Mala Brokolice|pokec týmu Sound of Society|Jouda Mala Brokolice|Jouda Mala"
+[2026-05-06][22:47:02][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] snapshot candidates=5 snapshot="Jouda Mala Brokolice|pokec týmu Sound of Society|Jouda Mala Brokolice|Jouda Mala"
+[2026-05-06][22:47:02][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Sender] {"totalLinks":63,"scanned":5,"unreadHits":1,"rejected":["i=0 notUnread aria=n badge=n bold=n dot=n","i=1 notUnread aria=n badge=n bold=n dot=n","i=2 notUnread aria=n badge=n bold=n dot=n","i=3 notUnread aria=n badge=n bold=n dot=n"],"picked":"Jouda Mala Brokolice"} result="Jouda Mala Brokolice"
+[2026-05-06][22:47:02][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Unread] delayed count=1 sender="Jouda Mala Brokolice" activitySig="1:0:Jouda Mala Brokolice|pokec týmu Sound of"
+[2026-05-06][22:47:02][messengerx_lib::commands][DEBUG] [MessengerX][Notification][FocusProbe] focused=false minimized=Some(false) visible_api=Some(true)
+[2026-05-06][22:47:02][messengerx_lib::commands][INFO] [MessengerX][Notification][DECISION] count=1 old_count=0 focused=false enabled=true reason=zero-bounce-oscillation-suppressed fire=false clear_badge=false prev_count=1 count_increased=false sig_changed=false elapsed=Some(3) activity_sig="1:0:Jouda Mala Brokolice|pokec týmu Sound of" state_after=Notified { count: 1, sig: "1:0:Jouda Mala Brokolice|pokec týmu Sound of", fired_at_secs: 1778107619 }
+[2026-05-06][22:47:02][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] snapshot candidates=5 snapshot="Jouda Mala Brokolice|pokec týmu Sound of Society|Jouda Mala Brokolice|Jouda Mala"
+[2026-05-06][22:47:03][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] zeroTimer scheduled (7 s)
+[2026-05-06][22:47:03][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Unread] immediate count=0 sender="" activitySig=""
+[2026-05-06][22:47:03][messengerx_lib::commands][DEBUG] [MessengerX][Notification][FocusProbe] focused=false minimized=Some(false) visible_api=Some(true)
+[2026-05-06][22:47:03][messengerx_lib::commands][INFO] [MessengerX][Notification][DECISION] count=0 old_count=1 focused=false enabled=true reason=zero-pending-start fire=false clear_badge=false prev_count=1 count_increased=false sig_changed=false elapsed=Some(4) activity_sig="" state_after=ZeroPending { prev_count: 1, prev_sig: "1:0:Jouda Mala Brokolice|pokec týmu Sound of", prev_fired_at_secs: 1778107619, zero_since_secs: 1778107623 }
+[2026-05-06][22:47:05][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] risingEdge bucket=889053812
+[2026-05-06][22:47:05][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] zeroTimer cancelled (count went positive)
+[2026-05-06][22:47:05][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] snapshot candidates=5 snapshot="Jouda Mala Brokolice|pokec týmu Sound of Society|Jouda Mala Brokolice|Jouda Mala"
+[2026-05-06][22:47:05][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] snapshot candidates=5 snapshot="Jouda Mala Brokolice|pokec týmu Sound of Society|Jouda Mala Brokolice|Jouda Mala"
+[2026-05-06][22:47:05][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Sender] {"totalLinks":63,"scanned":5,"unreadHits":1,"rejected":["i=0 notUnread aria=n badge=n bold=n dot=n","i=1 notUnread aria=n badge=n bold=n dot=n","i=2 notUnread aria=n badge=n bold=n dot=n","i=3 notUnread aria=n badge=n bold=n dot=n"],"picked":"Jouda Mala Brokolice"} result="Jouda Mala Brokolice"
+[2026-05-06][22:47:05][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Unread] delayed count=1 sender="Jouda Mala Brokolice" activitySig="1:0:Jouda Mala Brokolice|pokec týmu Sound of"
+[2026-05-06][22:47:05][messengerx_lib::commands][DEBUG] [MessengerX][Notification][FocusProbe] focused=false minimized=Some(false) visible_api=Some(true)
+[2026-05-06][22:47:05][messengerx_lib::commands][INFO] [MessengerX][Notification][DECISION] count=1 old_count=0 focused=false enabled=true reason=zero-bounce-oscillation-suppressed fire=false clear_badge=false prev_count=1 count_increased=false sig_changed=false elapsed=Some(6) activity_sig="1:0:Jouda Mala Brokolice|pokec týmu Sound of" state_after=Notified { count: 1, sig: "1:0:Jouda Mala Brokolice|pokec týmu Sound of", fired_at_secs: 1778107619 }
+[2026-05-06][22:47:06][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] zeroTimer scheduled (7 s)
+[2026-05-06][22:47:06][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Unread] immediate count=0 sender="" activitySig=""
+[2026-05-06][22:47:06][messengerx_lib::commands][DEBUG] [MessengerX][Notification][FocusProbe] focused=false minimized=Some(false) visible_api=Some(true)
+[2026-05-06][22:47:06][messengerx_lib::commands][INFO] [MessengerX][Notification][DECISION] count=0 old_count=1 focused=false enabled=true reason=zero-pending-start fire=false clear_badge=false prev_count=1 count_increased=false sig_changed=false elapsed=Some(7) activity_sig="" state_after=ZeroPending { prev_count: 1, prev_sig: "1:0:Jouda Mala Brokolice|pokec týmu Sound of", prev_fired_at_secs: 1778107619, zero_since_secs: 1778107626 }
+[2026-05-06][22:47:06][messengerx_lib::commands][INFO] [MessengerX][JS] [DiagJS] [WS] [{"url":"edge-chat.messenger.com/chat?region=odn&sid=6551691482628095","out":0,"in":1,"bytes":2},{"url":"gateway.messenger.com/ws/rpsignaling?x-dgw-appid=77202111287","out":1,"in":2,"bytes":3}]
+[2026-05-06][22:47:08][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] risingEdge bucket=889053814
+[2026-05-06][22:47:08][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] zeroTimer cancelled (count went positive)
+[2026-05-06][22:47:08][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] snapshot candidates=5 snapshot="Jouda Mala Brokolice|pokec týmu Sound of Society|Jouda Mala Brokolice|Jouda Mala"
+[2026-05-06][22:47:08][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] snapshot candidates=5 snapshot="Jouda Mala Brokolice|pokec týmu Sound of Society|Jouda Mala Brokolice|Jouda Mala"
+[2026-05-06][22:47:08][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Sender] {"totalLinks":63,"scanned":5,"unreadHits":1,"rejected":["i=0 notUnread aria=n badge=n bold=n dot=n","i=1 notUnread aria=n badge=n bold=n dot=n","i=2 notUnread aria=n badge=n bold=n dot=n","i=3 notUnread aria=n badge=n bold=n dot=n"],"picked":"Jouda Mala Brokolice"} result="Jouda Mala Brokolice"
+[2026-05-06][22:47:08][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Unread] delayed count=1 sender="Jouda Mala Brokolice" activitySig="1:0:Jouda Mala Brokolice|pokec týmu Sound of"
+[2026-05-06][22:47:08][messengerx_lib::commands][DEBUG] [MessengerX][Notification][FocusProbe] focused=false minimized=Some(false) visible_api=Some(true)
+[2026-05-06][22:47:08][messengerx_lib::commands][INFO] [MessengerX][Notification][DECISION] count=1 old_count=0 focused=false enabled=true reason=zero-bounce-oscillation-suppressed fire=false clear_badge=false prev_count=1 count_increased=false sig_changed=false elapsed=Some(9) activity_sig="1:0:Jouda Mala Brokolice|pokec týmu Sound of" state_after=Notified { count: 1, sig: "1:0:Jouda Mala Brokolice|pokec týmu Sound of", fired_at_secs: 1778107619 }
+[2026-05-06][22:47:08][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] snapshot candidates=5 snapshot="Jouda Mala Brokolice|pokec týmu Sound of Society|Jouda Mala Brokolice|Jouda Mala"
+[2026-05-06][22:47:09][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] zeroTimer scheduled (7 s)
+[2026-05-06][22:47:09][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Unread] immediate count=0 sender="" activitySig=""
+[2026-05-06][22:47:09][messengerx_lib::commands][DEBUG] [MessengerX][Notification][FocusProbe] focused=false minimized=Some(false) visible_api=Some(true)
+[2026-05-06][22:47:09][messengerx_lib::commands][INFO] [MessengerX][Notification][DECISION] count=0 old_count=1 focused=false enabled=true reason=zero-pending-start fire=false clear_badge=false prev_count=1 count_increased=false sig_changed=false elapsed=Some(10) activity_sig="" state_after=ZeroPending { prev_count: 1, prev_sig: "1:0:Jouda Mala Brokolice|pokec týmu Sound of", prev_fired_at_secs: 1778107619, zero_since_secs: 1778107629 }
+[2026-05-06][22:47:11][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] risingEdge bucket=889053815
+[2026-05-06][22:47:11][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] zeroTimer cancelled (count went positive)
+[2026-05-06][22:47:11][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] snapshot candidates=5 snapshot="Jouda Mala Brokolice|pokec týmu Sound of Society|Jouda Mala Brokolice|Jouda Mala"
+[2026-05-06][22:47:11][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] snapshot candidates=5 snapshot="Jouda Mala Brokolice|pokec týmu Sound of Society|Jouda Mala Brokolice|Jouda Mala"
+[2026-05-06][22:47:11][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Sender] {"totalLinks":63,"scanned":5,"unreadHits":1,"rejected":["i=0 notUnread aria=n badge=n bold=n dot=n","i=1 notUnread aria=n badge=n bold=n dot=n","i=2 notUnread aria=n badge=n bold=n dot=n","i=3 notUnread aria=n badge=n bold=n dot=n"],"picked":"Jouda Mala Brokolice"} result="Jouda Mala Brokolice"
+[2026-05-06][22:47:11][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Unread] delayed count=1 sender="Jouda Mala Brokolice" activitySig="1:0:Jouda Mala Brokolice|pokec týmu Sound of"
+[2026-05-06][22:47:11][messengerx_lib::commands][DEBUG] [MessengerX][Notification][FocusProbe] focused=false minimized=Some(false) visible_api=Some(true)
+[2026-05-06][22:47:11][messengerx_lib::commands][INFO] [MessengerX][Notification][DECISION] count=1 old_count=0 focused=false enabled=true reason=zero-bounce-oscillation-suppressed fire=false clear_badge=false prev_count=1 count_increased=false sig_changed=false elapsed=Some(12) activity_sig="1:0:Jouda Mala Brokolice|pokec týmu Sound of" state_after=Notified { count: 1, sig: "1:0:Jouda Mala Brokolice|pokec týmu Sound of", fired_at_secs: 1778107619 }
+[2026-05-06][22:47:12][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] zeroTimer scheduled (7 s)
+[2026-05-06][22:47:12][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Unread] immediate count=0 sender="" activitySig=""
+[2026-05-06][22:47:12][messengerx_lib::commands][DEBUG] [MessengerX][Notification][FocusProbe] focused=false minimized=Some(false) visible_api=Some(true)
+[2026-05-06][22:47:12][messengerx_lib::commands][INFO] [MessengerX][Notification][DECISION] count=0 old_count=1 focused=false enabled=true reason=zero-pending-start fire=false clear_badge=false prev_count=1 count_increased=false sig_changed=false elapsed=Some(13) activity_sig="" state_after=ZeroPending { prev_count: 1, prev_sig: "1:0:Jouda Mala Brokolice|pokec týmu Sound of", prev_fired_at_secs: 1778107619, zero_since_secs: 1778107632 }
+[2026-05-06][22:47:12][messengerx_lib::commands][INFO] [MessengerX][JS] [DiagJS] [WS] [{"url":"gateway.messenger.com/ws/streamcontroller?x-dgw-appid=772021","out":1,"in":2,"bytes":3},{"url":"gateway.messenger.com/ws/realtime?x-dgw-appid=77202111287187","out":1,"in":2,"bytes":3}]
+[2026-05-06][22:47:13][messengerx_lib::commands][INFO] [MessengerX][JS] [DiagJS] [XHR] POST /api/graphql/ -> 200
+[2026-05-06][22:47:13][messengerx_lib::commands][INFO] [MessengerX][JS] [DiagJS] [XHR] POST /api/graphql/ -> 200
+[2026-05-06][22:47:13][messengerx_lib::commands][INFO] [MessengerX][JS] [DiagJS] [FocusHB] {"hasFocus":false,"visibility":"hidden","hidden":true,"url":"/e2ee/t/7624198980981504/"}
+[2026-05-06][22:47:13][messengerx_lib::commands][INFO] [MessengerX][JS] [NotificationJS] [health] permission=granted __native__=true visibility=hidden hasFocus=false sw_regs=0 sw_ctrl=none
+[2026-05-06][22:47:14][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] risingEdge bucket=889053817
+[2026-05-06][22:47:14][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] zeroTimer cancelled (count went positive)
+[2026-05-06][22:47:14][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] snapshot candidates=5 snapshot="Jouda Mala Brokolice|pokec týmu Sound of Society|Jouda Mala Brokolice|Jouda Mala"
+[2026-05-06][22:47:14][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] snapshot candidates=5 snapshot="Jouda Mala Brokolice|pokec týmu Sound of Society|Jouda Mala Brokolice|Jouda Mala"
+[2026-05-06][22:47:14][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Sender] {"totalLinks":63,"scanned":5,"unreadHits":1,"rejected":["i=0 notUnread aria=n badge=n bold=n dot=n","i=1 notUnread aria=n badge=n bold=n dot=n","i=2 notUnread aria=n badge=n bold=n dot=n","i=3 notUnread aria=n badge=n bold=n dot=n"],"picked":"Jouda Mala Brokolice"} result="Jouda Mala Brokolice"
+[2026-05-06][22:47:14][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Unread] delayed count=1 sender="Jouda Mala Brokolice" activitySig="1:0:Jouda Mala Brokolice|pokec týmu Sound of"
+[2026-05-06][22:47:14][messengerx_lib::commands][DEBUG] [MessengerX][Notification][FocusProbe] focused=false minimized=Some(false) visible_api=Some(true)
+[2026-05-06][22:47:14][messengerx_lib::commands][INFO] [MessengerX][Notification][DECISION] count=1 old_count=0 focused=false enabled=true reason=zero-bounce-oscillation-suppressed fire=false clear_badge=false prev_count=1 count_increased=false sig_changed=false elapsed=Some(15) activity_sig="1:0:Jouda Mala Brokolice|pokec týmu Sound of" state_after=Notified { count: 1, sig: "1:0:Jouda Mala Brokolice|pokec týmu Sound of", fired_at_secs: 1778107619 }
+[2026-05-06][22:47:14][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] snapshot candidates=5 snapshot="Jouda Mala Brokolice|pokec týmu Sound of Society|Jouda Mala Brokolice|Jouda Mala"
+[2026-05-06][22:47:15][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] zeroTimer scheduled (7 s)
+[2026-05-06][22:47:15][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Unread] immediate count=0 sender="" activitySig=""
+[2026-05-06][22:47:15][messengerx_lib::commands][DEBUG] [MessengerX][Notification][FocusProbe] focused=false minimized=Some(false) visible_api=Some(true)
+[2026-05-06][22:47:15][messengerx_lib::commands][INFO] [MessengerX][Notification][DECISION] count=0 old_count=1 focused=false enabled=true reason=zero-pending-start fire=false clear_badge=false prev_count=1 count_increased=false sig_changed=false elapsed=Some(16) activity_sig="" state_after=ZeroPending { prev_count: 1, prev_sig: "1:0:Jouda Mala Brokolice|pokec týmu Sound of", prev_fired_at_secs: 1778107619, zero_since_secs: 1778107635 }
+[2026-05-06][22:47:17][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] risingEdge bucket=889053818
+[2026-05-06][22:47:17][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] zeroTimer cancelled (count went positive)
+[2026-05-06][22:47:17][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] snapshot candidates=5 snapshot="Jouda Mala Brokolice|pokec týmu Sound of Society|Jouda Mala Brokolice|Jouda Mala"
+[2026-05-06][22:47:17][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] snapshot candidates=5 snapshot="Jouda Mala Brokolice|pokec týmu Sound of Society|Jouda Mala Brokolice|Jouda Mala"
+[2026-05-06][22:47:17][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Sender] {"totalLinks":63,"scanned":5,"unreadHits":1,"rejected":["i=0 notUnread aria=n badge=n bold=n dot=n","i=1 notUnread aria=n badge=n bold=n dot=n","i=2 notUnread aria=n badge=n bold=n dot=n","i=3 notUnread aria=n badge=n bold=n dot=n"],"picked":"Jouda Mala Brokolice"} result="Jouda Mala Brokolice"
+[2026-05-06][22:47:17][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Unread] delayed count=1 sender="Jouda Mala Brokolice" activitySig="1:0:Jouda Mala Brokolice|pokec týmu Sound of"
+[2026-05-06][22:47:17][messengerx_lib::commands][DEBUG] [MessengerX][Notification][FocusProbe] focused=false minimized=Some(false) visible_api=Some(true)
+[2026-05-06][22:47:17][messengerx_lib::commands][INFO] [MessengerX][Notification][DECISION] count=1 old_count=0 focused=false enabled=true reason=zero-bounce-oscillation-suppressed fire=false clear_badge=false prev_count=1 count_increased=false sig_changed=false elapsed=Some(18) activity_sig="1:0:Jouda Mala Brokolice|pokec týmu Sound of" state_after=Notified { count: 1, sig: "1:0:Jouda Mala Brokolice|pokec týmu Sound of", fired_at_secs: 1778107619 }
+[2026-05-06][22:47:18][messengerx_lib::commands][INFO] [MessengerX][JS] [DiagJS] [WS] [{"url":"gateway.messenger.com/ws/realtime?x-dgw-appid=77202111287187","out":4,"in":8,"bytes":8217},{"url":"edge-chat.messenger.com/chat?region=odn&sid=471008936984575&","out":2,"in":8,"bytes":3768},{"url":"gateway.messenger.com/ws/rpsignaling?x-dgw-appid=77202111287","out":1,"in":2,"bytes":3},{"url":"edge-chat.messenger.com/chat?region=odn&sid=6551691482628095","out":1,"in":1,"bytes":4},{"url":"gateway.messenger.com/ws/streamcontroller?x-dgw-appid=772021","out":1,"in":2,"bytes":3}]
+[2026-05-06][22:47:18][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] zeroTimer scheduled (7 s)
+[2026-05-06][22:47:18][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Unread] immediate count=0 sender="" activitySig=""
+[2026-05-06][22:47:18][messengerx_lib::commands][DEBUG] [MessengerX][Notification][FocusProbe] focused=false minimized=Some(false) visible_api=Some(true)
+[2026-05-06][22:47:18][messengerx_lib::commands][INFO] [MessengerX][Notification][DECISION] count=0 old_count=1 focused=false enabled=true reason=zero-pending-start fire=false clear_badge=false prev_count=1 count_increased=false sig_changed=false elapsed=Some(19) activity_sig="" state_after=ZeroPending { prev_count: 1, prev_sig: "1:0:Jouda Mala Brokolice|pokec týmu Sound of", prev_fired_at_secs: 1778107619, zero_since_secs: 1778107638 }
+[2026-05-06][22:47:20][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] risingEdge bucket=889053820
+[2026-05-06][22:47:20][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] zeroTimer cancelled (count went positive)
+[2026-05-06][22:47:20][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] snapshot candidates=5 snapshot="Jouda Mala Brokolice|pokec týmu Sound of Society|Jouda Mala Brokolice|Jouda Mala"
+[2026-05-06][22:47:20][messengerx_lib::commands][INFO] [MessengerX][JS] [DiagJS] [XHR] POST /api/graphql/ -> 200
+[2026-05-06][22:47:20][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] snapshot candidates=5 snapshot="Jouda Mala Brokolice|pokec týmu Sound of Society|Jouda Mala Brokolice|Jouda Mala"
+[2026-05-06][22:47:20][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Sender] {"totalLinks":63,"scanned":5,"unreadHits":1,"rejected":["i=0 notUnread aria=n badge=n bold=n dot=n","i=1 notUnread aria=n badge=n bold=n dot=n","i=2 notUnread aria=n badge=n bold=n dot=n","i=3 notUnread aria=n badge=n bold=n dot=n"],"picked":"Jouda Mala Brokolice"} result="Jouda Mala Brokolice"
+[2026-05-06][22:47:20][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Unread] delayed count=1 sender="Jouda Mala Brokolice" activitySig="1:0:Jouda Mala Brokolice|pokec týmu Sound of"
+[2026-05-06][22:47:20][messengerx_lib::commands][DEBUG] [MessengerX][Notification][FocusProbe] focused=false minimized=Some(false) visible_api=Some(true)
+[2026-05-06][22:47:20][messengerx_lib::commands][INFO] [MessengerX][Notification][DECISION] count=1 old_count=0 focused=false enabled=true reason=zero-bounce-oscillation-suppressed fire=false clear_badge=false prev_count=1 count_increased=false sig_changed=false elapsed=Some(21) activity_sig="1:0:Jouda Mala Brokolice|pokec týmu Sound of" state_after=Notified { count: 1, sig: "1:0:Jouda Mala Brokolice|pokec týmu Sound of", fired_at_secs: 1778107619 }
+[2026-05-06][22:47:20][messengerx_lib::commands][INFO] [MessengerX][JS] [DiagJS] [XHR] POST /api/graphql/ -> 200
+[2026-05-06][22:47:20][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] snapshot candidates=5 snapshot="Jouda Mala Brokolice|pokec týmu Sound of Society|Jouda Mala Brokolice|Jouda Mala"
+[2026-05-06][22:47:21][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] zeroTimer scheduled (7 s)
+[2026-05-06][22:47:21][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Unread] immediate count=0 sender="" activitySig=""
+[2026-05-06][22:47:21][messengerx_lib::commands][DEBUG] [MessengerX][Notification][FocusProbe] focused=false minimized=Some(false) visible_api=Some(true)
+[2026-05-06][22:47:21][messengerx_lib::commands][INFO] [MessengerX][Notification][DECISION] count=0 old_count=1 focused=false enabled=true reason=zero-pending-start fire=false clear_badge=false prev_count=1 count_increased=false sig_changed=false elapsed=Some(22) activity_sig="" state_after=ZeroPending { prev_count: 1, prev_sig: "1:0:Jouda Mala Brokolice|pokec týmu Sound of", prev_fired_at_secs: 1778107619, zero_since_secs: 1778107641 }
+[2026-05-06][22:47:23][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] risingEdge bucket=889053821
+[2026-05-06][22:47:23][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] zeroTimer cancelled (count went positive)
+[2026-05-06][22:47:23][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] snapshot candidates=5 snapshot="Jouda Mala Brokolice|pokec týmu Sound of Society|Jouda Mala Brokolice|Jouda Mala"
+[2026-05-06][22:47:23][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] snapshot candidates=5 snapshot="Jouda Mala Brokolice|pokec týmu Sound of Society|Jouda Mala Brokolice|Jouda Mala"
+[2026-05-06][22:47:23][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Sender] {"totalLinks":63,"scanned":5,"unreadHits":1,"rejected":["i=0 notUnread aria=n badge=n bold=n dot=n","i=1 notUnread aria=n badge=n bold=n dot=n","i=2 notUnread aria=n badge=n bold=n dot=n","i=3 notUnread aria=n badge=n bold=n dot=n"],"picked":"Jouda Mala Brokolice"} result="Jouda Mala Brokolice"
+[2026-05-06][22:47:23][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Unread] delayed count=1 sender="Jouda Mala Brokolice" activitySig="1:0:Jouda Mala Brokolice|pokec týmu Sound of"
+[2026-05-06][22:47:23][messengerx_lib::commands][DEBUG] [MessengerX][Notification][FocusProbe] focused=false minimized=Some(false) visible_api=Some(true)
+[2026-05-06][22:47:23][messengerx_lib::commands][INFO] [MessengerX][Notification][DECISION] count=1 old_count=0 focused=false enabled=true reason=zero-bounce-oscillation-suppressed fire=false clear_badge=false prev_count=1 count_increased=false sig_changed=false elapsed=Some(24) activity_sig="1:0:Jouda Mala Brokolice|pokec týmu Sound of" state_after=Notified { count: 1, sig: "1:0:Jouda Mala Brokolice|pokec týmu Sound of", fired_at_secs: 1778107619 }
+[2026-05-06][22:47:24][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] zeroTimer scheduled (7 s)
+[2026-05-06][22:47:24][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Unread] immediate count=0 sender="" activitySig=""
+[2026-05-06][22:47:24][messengerx_lib::commands][DEBUG] [MessengerX][Notification][FocusProbe] focused=false minimized=Some(false) visible_api=Some(true)
+[2026-05-06][22:47:24][messengerx_lib::commands][INFO] [MessengerX][Notification][DECISION] count=0 old_count=1 focused=false enabled=true reason=zero-pending-start fire=false clear_badge=false prev_count=1 count_increased=false sig_changed=false elapsed=Some(25) activity_sig="" state_after=ZeroPending { prev_count: 1, prev_sig: "1:0:Jouda Mala Brokolice|pokec týmu Sound of", prev_fired_at_secs: 1778107619, zero_since_secs: 1778107644 }
+[2026-05-06][22:47:24][messengerx_lib::commands][INFO] [MessengerX][JS] [DiagJS] [XHR] POST /api/graphql/ -> 200
+[2026-05-06][22:47:25][messengerx_lib::commands][INFO] [MessengerX][JS] [DiagJS] [WS] [{"url":"edge-chat.messenger.com/chat?region=odn&sid=471008936984575&","out":2,"in":13,"bytes":6881},{"url":"gateway.messenger.com/ws/realtime?x-dgw-appid=77202111287187","out":4,"in":8,"bytes":8224},{"url":"gateway.messenger.com/ws/rpsignaling?x-dgw-appid=77202111287","out":1,"in":2,"bytes":3}]
+[2026-05-06][22:47:25][messengerx_lib::commands][INFO] [MessengerX][JS] [DiagJS] [XHR] POST /api/graphql/ -> 200
+[2026-05-06][22:47:26][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] risingEdge bucket=889053823
+[2026-05-06][22:47:26][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] zeroTimer cancelled (count went positive)
+[2026-05-06][22:47:26][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] snapshot candidates=5 snapshot="Jouda Mala Brokolice|pokec týmu Sound of Society|Jouda Mala Brokolice|Jouda Mala"
+[2026-05-06][22:47:26][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] snapshot candidates=5 snapshot="Jouda Mala Brokolice|pokec týmu Sound of Society|Jouda Mala Brokolice|Jouda Mala"
+[2026-05-06][22:47:26][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Sender] {"totalLinks":63,"scanned":5,"unreadHits":1,"rejected":["i=0 notUnread aria=n badge=n bold=n dot=n","i=1 notUnread aria=n badge=n bold=n dot=n","i=2 notUnread aria=n badge=n bold=n dot=n","i=3 notUnread aria=n badge=n bold=n dot=n"],"picked":"Jouda Mala Brokolice"} result="Jouda Mala Brokolice"
+[2026-05-06][22:47:26][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Unread] delayed count=1 sender="Jouda Mala Brokolice" activitySig="1:0:Jouda Mala Brokolice|pokec týmu Sound of"
+[2026-05-06][22:47:26][messengerx_lib::commands][DEBUG] [MessengerX][Notification][FocusProbe] focused=false minimized=Some(false) visible_api=Some(true)
+[2026-05-06][22:47:26][messengerx_lib::commands][INFO] [MessengerX][Notification][DECISION] count=1 old_count=0 focused=false enabled=true reason=zero-bounce-oscillation-suppressed fire=false clear_badge=false prev_count=1 count_increased=false sig_changed=false elapsed=Some(27) activity_sig="1:0:Jouda Mala Brokolice|pokec týmu Sound of" state_after=Notified { count: 1, sig: "1:0:Jouda Mala Brokolice|pokec týmu Sound of", fired_at_secs: 1778107619 }
+[2026-05-06][22:47:26][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] snapshot candidates=5 snapshot="Jouda Mala Brokolice|pokec týmu Sound of Society|Jouda Mala Brokolice|Jouda Mala"
+[2026-05-06][22:47:27][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] zeroTimer scheduled (7 s)
+[2026-05-06][22:47:27][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Unread] immediate count=0 sender="" activitySig=""
+[2026-05-06][22:47:27][messengerx_lib::commands][DEBUG] [MessengerX][Notification][FocusProbe] focused=false minimized=Some(false) visible_api=Some(true)
+[2026-05-06][22:47:27][messengerx_lib::commands][INFO] [MessengerX][Notification][DECISION] count=0 old_count=1 focused=false enabled=true reason=zero-pending-start fire=false clear_badge=false prev_count=1 count_increased=false sig_changed=false elapsed=Some(28) activity_sig="" state_after=ZeroPending { prev_count: 1, prev_sig: "1:0:Jouda Mala Brokolice|pokec týmu Sound of", prev_fired_at_secs: 1778107619, zero_since_secs: 1778107647 }
+[2026-05-06][22:47:28][messengerx_lib::commands][INFO] [MessengerX][JS] [DiagJS] [XHR] POST /api/graphql/ -> 200
+[2026-05-06][22:47:28][messengerx_lib::commands][INFO] [MessengerX][JS] [DiagJS] [XHR] POST /api/graphql/ -> 200
+[2026-05-06][22:47:29][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] risingEdge bucket=889053824
+[2026-05-06][22:47:29][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] zeroTimer cancelled (count went positive)
+[2026-05-06][22:47:29][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] snapshot candidates=5 snapshot="Jouda Mala Brokolice|pokec týmu Sound of Society|Jouda Mala Brokolice|Jouda Mala"
+[2026-05-06][22:47:29][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] snapshot candidates=5 snapshot="Jouda Mala Brokolice|pokec týmu Sound of Society|Jouda Mala Brokolice|Jouda Mala"
+[2026-05-06][22:47:29][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Sender] {"totalLinks":63,"scanned":5,"unreadHits":1,"rejected":["i=0 notUnread aria=n badge=n bold=n dot=n","i=1 notUnread aria=n badge=n bold=n dot=n","i=2 notUnread aria=n badge=n bold=n dot=n","i=3 notUnread aria=n badge=n bold=n dot=n"],"picked":"Jouda Mala Brokolice"} result="Jouda Mala Brokolice"
+[2026-05-06][22:47:29][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Unread] delayed count=1 sender="Jouda Mala Brokolice" activitySig="1:0:Jouda Mala Brokolice|pokec týmu Sound of"
+[2026-05-06][22:47:29][messengerx_lib::commands][DEBUG] [MessengerX][Notification][FocusProbe] focused=false minimized=Some(false) visible_api=Some(true)
+[2026-05-06][22:47:29][messengerx_lib::commands][INFO] [MessengerX][Notification][DECISION] count=1 old_count=0 focused=false enabled=true reason=zero-bounce-oscillation-suppressed fire=false clear_badge=false prev_count=1 count_increased=false sig_changed=false elapsed=Some(30) activity_sig="1:0:Jouda Mala Brokolice|pokec týmu Sound of" state_after=Notified { count: 1, sig: "1:0:Jouda Mala Brokolice|pokec týmu Sound of", fired_at_secs: 1778107619 }
+[2026-05-06][22:47:30][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] zeroTimer scheduled (7 s)
+[2026-05-06][22:47:30][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Unread] immediate count=0 sender="" activitySig=""
+[2026-05-06][22:47:30][messengerx_lib::commands][DEBUG] [MessengerX][Notification][FocusProbe] focused=false minimized=Some(false) visible_api=Some(true)
+[2026-05-06][22:47:30][messengerx_lib::commands][INFO] [MessengerX][Notification][DECISION] count=0 old_count=1 focused=false enabled=true reason=zero-pending-start fire=false clear_badge=false prev_count=1 count_increased=false sig_changed=false elapsed=Some(31) activity_sig="" state_after=ZeroPending { prev_count: 1, prev_sig: "1:0:Jouda Mala Brokolice|pokec týmu Sound of", prev_fired_at_secs: 1778107619, zero_since_secs: 1778107650 }
+[2026-05-06][22:47:31][messengerx_lib::commands][INFO] [MessengerX][JS] [DiagJS] [WS] [{"url":"edge-chat.messenger.com/chat?region=odn&sid=471008936984575&","out":2,"in":9,"bytes":4415},{"url":"gateway.messenger.com/ws/realtime?x-dgw-appid=77202111287187","out":4,"in":8,"bytes":8012},{"url":"gateway.messenger.com/ws/streamcontroller?x-dgw-appid=772021","out":1,"in":2,"bytes":3}]
+[2026-05-06][22:47:32][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] risingEdge bucket=889053826
+[2026-05-06][22:47:32][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] zeroTimer cancelled (count went positive)
+[2026-05-06][22:47:32][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] snapshot candidates=5 snapshot="Jouda Mala Brokolice|pokec týmu Sound of Society|Jouda Mala Brokolice|Jouda Mala"
+[2026-05-06][22:47:32][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] snapshot candidates=5 snapshot="Jouda Mala Brokolice|pokec týmu Sound of Society|Jouda Mala Brokolice|Jouda Mala"
+[2026-05-06][22:47:32][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Sender] {"totalLinks":63,"scanned":5,"unreadHits":1,"rejected":["i=0 notUnread aria=n badge=n bold=n dot=n","i=1 notUnread aria=n badge=n bold=n dot=n","i=2 notUnread aria=n badge=n bold=n dot=n","i=3 notUnread aria=n badge=n bold=n dot=n"],"picked":"Jouda Mala Brokolice"} result="Jouda Mala Brokolice"
+[2026-05-06][22:47:32][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Unread] delayed count=1 sender="Jouda Mala Brokolice" activitySig="1:0:Jouda Mala Brokolice|pokec týmu Sound of"
+[2026-05-06][22:47:32][messengerx_lib::commands][DEBUG] [MessengerX][Notification][FocusProbe] focused=false minimized=Some(false) visible_api=Some(true)
+[2026-05-06][22:47:32][messengerx_lib::commands][INFO] [MessengerX][Notification][DECISION] count=1 old_count=0 focused=false enabled=true reason=zero-bounce-oscillation-suppressed fire=false clear_badge=false prev_count=1 count_increased=false sig_changed=false elapsed=Some(33) activity_sig="1:0:Jouda Mala Brokolice|pokec týmu Sound of" state_after=Notified { count: 1, sig: "1:0:Jouda Mala Brokolice|pokec týmu Sound of", fired_at_secs: 1778107619 }
+[2026-05-06][22:47:32][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] snapshot candidates=5 snapshot="Jouda Mala Brokolice|pokec týmu Sound of Society|Jouda Mala Brokolice|Jouda Mala"
+[2026-05-06][22:47:33][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] zeroTimer scheduled (7 s)
+[2026-05-06][22:47:33][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Unread] immediate count=0 sender="" activitySig=""
+[2026-05-06][22:47:33][messengerx_lib::commands][DEBUG] [MessengerX][Notification][FocusProbe] focused=false minimized=Some(false) visible_api=Some(true)
+[2026-05-06][22:47:33][messengerx_lib::commands][INFO] [MessengerX][Notification][DECISION] count=0 old_count=1 focused=false enabled=true reason=zero-pending-start fire=false clear_badge=false prev_count=1 count_increased=false sig_changed=false elapsed=Some(34) activity_sig="" state_after=ZeroPending { prev_count: 1, prev_sig: "1:0:Jouda Mala Brokolice|pokec týmu Sound of", prev_fired_at_secs: 1778107619, zero_since_secs: 1778107653 }
+[2026-05-06][22:47:35][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] risingEdge bucket=889053827
+[2026-05-06][22:47:35][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] zeroTimer cancelled (count went positive)
+[2026-05-06][22:47:35][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] snapshot candidates=5 snapshot="Jouda Mala Brokolice|pokec týmu Sound of Society|Jouda Mala Brokolice|Jouda Mala"
+[2026-05-06][22:47:35][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] snapshot candidates=5 snapshot="Jouda Mala Brokolice|pokec týmu Sound of Society|Jouda Mala Brokolice|Jouda Mala"
+[2026-05-06][22:47:35][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Sender] {"totalLinks":63,"scanned":5,"unreadHits":1,"rejected":["i=0 notUnread aria=n badge=n bold=n dot=n","i=1 notUnread aria=n badge=n bold=n dot=n","i=2 notUnread aria=n badge=n bold=n dot=n","i=3 notUnread aria=n badge=n bold=n dot=n"],"picked":"Jouda Mala Brokolice"} result="Jouda Mala Brokolice"
+[2026-05-06][22:47:35][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Unread] delayed count=1 sender="Jouda Mala Brokolice" activitySig="1:0:Jouda Mala Brokolice|pokec týmu Sound of"
+[2026-05-06][22:47:35][messengerx_lib::commands][DEBUG] [MessengerX][Notification][FocusProbe] focused=false minimized=Some(false) visible_api=Some(true)
+[2026-05-06][22:47:35][messengerx_lib::commands][INFO] [MessengerX][Notification][DECISION] count=1 old_count=0 focused=false enabled=true reason=zero-bounce-oscillation-suppressed fire=false clear_badge=false prev_count=1 count_increased=false sig_changed=false elapsed=Some(36) activity_sig="1:0:Jouda Mala Brokolice|pokec týmu Sound of" state_after=Notified { count: 1, sig: "1:0:Jouda Mala Brokolice|pokec týmu Sound of", fired_at_secs: 1778107619 }
+[2026-05-06][22:47:36][messengerx_lib::commands][INFO] [MessengerX][JS] [DiagJS] [WS] [{"url":"edge-chat.messenger.com/chat?region=odn&sid=6551691482628095","out":1,"in":1,"bytes":4},{"url":"gateway.messenger.com/ws/realtime?x-dgw-appid=77202111287187","out":2,"in":4,"bytes":3644},{"url":"gateway.messenger.com/ws/rpsignaling?x-dgw-appid=77202111287","out":1,"in":2,"bytes":3}]
+[2026-05-06][22:47:36][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] zeroTimer scheduled (7 s)
+[2026-05-06][22:47:36][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Unread] immediate count=0 sender="" activitySig=""
+[2026-05-06][22:47:36][messengerx_lib::commands][DEBUG] [MessengerX][Notification][FocusProbe] focused=false minimized=Some(false) visible_api=Some(true)
+[2026-05-06][22:47:36][messengerx_lib::commands][INFO] [MessengerX][Notification][DECISION] count=0 old_count=1 focused=false enabled=true reason=zero-pending-start fire=false clear_badge=false prev_count=1 count_increased=false sig_changed=false elapsed=Some(37) activity_sig="" state_after=ZeroPending { prev_count: 1, prev_sig: "1:0:Jouda Mala Brokolice|pokec týmu Sound of", prev_fired_at_secs: 1778107619, zero_since_secs: 1778107656 }
+[2026-05-06][22:47:38][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] risingEdge bucket=889053829
+[2026-05-06][22:47:38][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] zeroTimer cancelled (count went positive)
+[2026-05-06][22:47:38][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] snapshot candidates=5 snapshot="Jouda Mala Brokolice|pokec týmu Sound of Society|Jouda Mala Brokolice|Jouda Mala"
+[2026-05-06][22:47:38][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] snapshot candidates=5 snapshot="Jouda Mala Brokolice|pokec týmu Sound of Society|Jouda Mala Brokolice|Jouda Mala"
+[2026-05-06][22:47:38][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Sender] {"totalLinks":63,"scanned":5,"unreadHits":1,"rejected":["i=0 notUnread aria=n badge=n bold=n dot=n","i=1 notUnread aria=n badge=n bold=n dot=n","i=2 notUnread aria=n badge=n bold=n dot=n","i=3 notUnread aria=n badge=n bold=n dot=n"],"picked":"Jouda Mala Brokolice"} result="Jouda Mala Brokolice"
+[2026-05-06][22:47:38][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Unread] delayed count=1 sender="Jouda Mala Brokolice" activitySig="1:0:Jouda Mala Brokolice|pokec týmu Sound of"
+[2026-05-06][22:47:38][messengerx_lib::commands][DEBUG] [MessengerX][Notification][FocusProbe] focused=false minimized=Some(false) visible_api=Some(true)
+[2026-05-06][22:47:38][messengerx_lib::commands][INFO] [MessengerX][Notification][DECISION] count=1 old_count=0 focused=false enabled=true reason=zero-bounce-oscillation-suppressed fire=false clear_badge=false prev_count=1 count_increased=false sig_changed=false elapsed=Some(39) activity_sig="1:0:Jouda Mala Brokolice|pokec týmu Sound of" state_after=Notified { count: 1, sig: "1:0:Jouda Mala Brokolice|pokec týmu Sound of", fired_at_secs: 1778107619 }
+[2026-05-06][22:47:38][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] snapshot candidates=5 snapshot="Jouda Mala Brokolice|pokec týmu Sound of Society|Jouda Mala Brokolice|Jouda Mala"
+[2026-05-06][22:47:39][tao::platform_impl::platform::window_delegate][TRACE] Triggered `windowDidBecomeKey:`
+[2026-05-06][22:47:39][tao::platform_impl::platform::window_delegate][TRACE] Completed `windowDidBecomeKey:`
+[2026-05-06][22:47:39][tao::platform_impl::platform::app_delegate][TRACE] Triggered `applicationShouldHandleReopen`
+[2026-05-06][22:47:39][tao::platform_impl::platform::app_delegate][TRACE] Completed `applicationShouldHandleReopen`
+[2026-05-06][22:47:39][messengerx_lib][INFO] [MessengerX][Notification] Window gained focus — notification state reset to Idle
+[2026-05-06][22:47:40][messengerx_lib::commands][INFO] [MessengerX][JS] [DiagJS] [XHR] POST /api/graphql/ -> 200
+[2026-05-06][22:47:40][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] snapshot candidates=5 snapshot="Jouda Mala Brokolice|pokec týmu Sound of Society|Jouda Mala Brokolice|Jouda Mala"
+[2026-05-06][22:47:41][messengerx_lib::commands][INFO] [MessengerX][JS] click interceptor: href=https://www.messenger.com/e2ee/t/1325229952858678/
+[2026-05-06][22:47:41][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] resetActivityState — seq/snapshot/sig/threadMut cleared
+[2026-05-06][22:47:41][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Unread] immediate count=0 sender="" activitySig=""
+[2026-05-06][22:47:41][messengerx_lib::commands][DEBUG] [MessengerX][Notification][FocusProbe] focused=true minimized=Some(false) visible_api=Some(true)
+[2026-05-06][22:47:41][messengerx_lib::commands][INFO] [MessengerX][Notification][DECISION] count=0 old_count=1 focused=true enabled=true reason=idle-count-zero fire=false clear_badge=true prev_count=0 count_increased=false sig_changed=false elapsed=None activity_sig="" state_after=Idle
+[2026-05-06][22:47:41][messengerx_lib::commands][INFO] [MessengerX][JS] [DiagJS] [XHR] POST /api/graphql/ -> 200
+[2026-05-06][22:47:42][messengerx_lib::commands][INFO] [MessengerX][JS] [DiagJS] [XHR] POST /api/graphql/ -> 200
+[2026-05-06][22:47:42][messengerx_lib::commands][INFO] [MessengerX][JS] [DiagJS] [XHR] POST /api/graphql/ -> 200
+[2026-05-06][22:47:43][messengerx_lib::commands][INFO] [MessengerX][JS] [DiagJS] [WS] [{"url":"gateway.messenger.com/ws/streamcontroller?x-dgw-appid=772021","out":2,"in":4,"bytes":461},{"url":"gateway.messenger.com/ws/realtime?x-dgw-appid=77202111287187","out":10,"in":20,"bytes":59325},{"url":"edge-chat.messenger.com/chat?region=odn&sid=471008936984575&","out":4,"in":9,"bytes":5506}]
+[2026-05-06][22:47:43][messengerx_lib::commands][INFO] [MessengerX][JS] [DiagJS] [FocusHB] {"hasFocus":true,"visibility":"visible","hidden":false,"url":"/e2ee/t/1325229952858678"}
+[2026-05-06][22:47:43][messengerx_lib::commands][INFO] [MessengerX][JS] [NotificationJS] [health] permission=granted __native__=true visibility=visible hasFocus=true sw_regs=0 sw_ctrl=none
+[2026-05-06][22:47:43][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [ThreadMut] batch size=11 source=body-fallback count=0
+[2026-05-06][22:47:46][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [ThreadMut] batch size=2 source=body-fallback count=0
+[2026-05-06][22:47:48][messengerx_lib::commands][INFO] [MessengerX][JS] [DiagJS] [WS] [{"url":"gateway.messenger.com/ws/realtime?x-dgw-appid=77202111287187","out":4,"in":8,"bytes":18887},{"url":"gateway.messenger.com/ws/rpsignaling?x-dgw-appid=77202111287","out":1,"in":2,"bytes":3},{"url":"edge-chat.messenger.com/chat?region=odn&sid=471008936984575&","out":1,"in":1,"bytes":4},{"url":"edge-chat.messenger.com/chat?region=odn&sid=6551691482628095","out":1,"in":1,"bytes":4}]
+[2026-05-06][22:47:55][messengerx_lib::commands][INFO] [MessengerX][JS] [DiagJS] [WS] [{"url":"gateway.messenger.com/ws/streamcontroller?x-dgw-appid=772021","out":1,"in":2,"bytes":3},{"url":"gateway.messenger.com/ws/realtime?x-dgw-appid=77202111287187","out":2,"in":4,"bytes":7598}]
+[2026-05-06][22:47:56][tao::platform_impl::platform::window_delegate][TRACE] Triggered `windowDidResignKey:`
+[2026-05-06][22:47:56][tao::platform_impl::platform::window_delegate][TRACE] Completed `windowDidResignKey:`
+[2026-05-06][22:47:59][messengerx_lib::commands][INFO] [MessengerX][JS] [DiagJS] [XHR] POST /api/graphql/ -> 200
+[2026-05-06][22:47:59][messengerx_lib::commands][INFO] [MessengerX][JS] [DiagJS] [XHR] POST /api/graphql/ -> 200
+[2026-05-06][22:47:59][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] risingEdge bucket=889053839
+[2026-05-06][22:47:59][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] snapshot candidates=5 snapshot="Jouda Mala Brokolice|pokec týmu Sound of Society|Jouda Mala Brokolice|Jouda Mala"
+[2026-05-06][22:47:59][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] baseline established count=1 snapshot="Jouda Mala Brokolice|pokec týmu Sound of Society|Jouda Mala " baselineSig="1:0:Jouda Mala Brokolice|pokec týmu Sound of"
+[2026-05-06][22:47:59][messengerx_lib::commands][INFO] [MessengerX][JS] [DiagJS] [XHR] POST /api/graphql/ -> 200
+[2026-05-06][22:48:00][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] snapshot candidates=5 snapshot="Jouda Mala Brokolice|pokec týmu Sound of Society|Jouda Mala Brokolice|Jouda Mala"
+[2026-05-06][22:48:00][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Sender] {"totalLinks":60,"scanned":5,"unreadHits":1,"rejected":["i=0 notUnread aria=n badge=n bold=n dot=n","i=1 notUnread aria=n badge=n bold=n dot=n","i=2 notUnread aria=n badge=n bold=n dot=n","i=3 notUnread aria=n badge=n bold=n dot=n"],"picked":"Jouda Mala Brokolice"} result="Jouda Mala Brokolice"
+[2026-05-06][22:48:00][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Unread] delayed count=1 sender="Jouda Mala Brokolice" activitySig="1:0:Jouda Mala Brokolice|pokec týmu Sound of"
+[2026-05-06][22:48:00][messengerx_lib::commands][DEBUG] [MessengerX][Notification][FocusProbe] focused=false minimized=Some(false) visible_api=Some(true)
+[2026-05-06][22:48:00][messengerx_lib::commands][INFO] [MessengerX][Notification][DECISION] count=1 old_count=0 focused=false enabled=true reason=idle-count-positive fire=true clear_badge=false prev_count=0 count_increased=true sig_changed=true elapsed=None activity_sig="1:0:Jouda Mala Brokolice|pokec týmu Sound of" state_after=Notified { count: 1, sig: "1:0:Jouda Mala Brokolice|pokec týmu Sound of", fired_at_secs: 1778107680 }
+[2026-05-06][22:48:00][messengerx_lib::commands][INFO] [MessengerX][Notification] firing notification: count 0 → 1; reason=idle-count-positive count_increased=true sig_changed=true; sender="Jouda Mala Brokolice" activity_sig="1:0:Jouda Mala Brokolice|pokec týmu Sound of" silent=false
+[2026-05-06][22:48:00][messengerx_lib::services::notification][INFO] [MessengerX][Notification] show_notification start: title="Jouda Mala Brokolice" body_len=0 tag="messenger-unread" silent=false
+[2026-05-06][22:48:00][messengerx_lib::services::notification][INFO] [MessengerX][Notification] bundle delegation unavailable (debug .app bundle version mismatch: bundle="1.3.17" current="1.3.22"; run `npm run tauri build -- --debug` once to refresh the notification helper); falling back to osascript
+[2026-05-06][22:48:00][messengerx_lib::services::notification][INFO] [MessengerX][Notification][OSASCRIPT FALLBACK] Dispatching macOS notification via osascript: reason=dev-mode-outside-app-bundle title="Jouda Mala Brokolice" silent=false script_len=57 exe="/Users/lasakondrej/Projects/fb-messanger-crossplatform/src-tauri/target/debug/messengerx" pid=66686 TERM_PROGRAM="ghostty" TERM="xterm-ghostty"
+[2026-05-06][22:48:00][messengerx_lib::services::notification][INFO] [MessengerX][Notification][OSASCRIPT FALLBACK] osascript succeeded: exit_code=0 stdout="" stderr=""
+[2026-05-06][22:48:00][messengerx_lib::services::notification][INFO] [MessengerX][Notification] macOS notification enqueued successfully
+[2026-05-06][22:48:00][messengerx_lib::commands][INFO] [MessengerX][JS] [DiagJS] [WS] [{"url":"gateway.messenger.com/ws/rpsignaling?x-dgw-appid=77202111287","out":1,"in":2,"bytes":3},{"url":"edge-chat.messenger.com/chat?region=odn&sid=471008936984575&","out":1,"in":6,"bytes":3117},{"url":"gateway.messenger.com/ws/realtime?x-dgw-appid=77202111287187","out":4,"in":8,"bytes":8254},{"url":"gateway.messenger.com/ws/streamcontroller?x-dgw-appid=772021","out":1,"in":2,"bytes":458}]
+[2026-05-06][22:48:00][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [ThreadMut] batch size=6 source=body-fallback count=1
+[2026-05-06][22:48:00][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [ThreadMut] bumped seq=1 count=1
+[2026-05-06][22:48:00][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] snapshot candidates=5 +M1 snapshot="Jouda Mala Brokolice|pokec týmu Sound of Society|Jouda Mala Brokolice|Jouda Mala"
+[2026-05-06][22:48:00][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] activitySeq=1 count=1 snapshot="Jouda Mala Brokolice|pokec týmu Sound of Society|Jouda Mala "
+[2026-05-06][22:48:00][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] snapshot candidates=5 +M1 snapshot="Jouda Mala Brokolice|pokec týmu Sound of Society|Jouda Mala Brokolice|Jouda Mala"
+[2026-05-06][22:48:00][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] snapshot candidates=5 +M1 snapshot="Jouda Mala Brokolice|pokec týmu Sound of Society|Jouda Mala Brokolice|Jouda Mala"
+[2026-05-06][22:48:01][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] snapshot candidates=5 +M1 snapshot="Jouda Mala Brokolice|pokec týmu Sound of Society|Jouda Mala Brokolice|Jouda Mala"
+[2026-05-06][22:48:01][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Sender] {"totalLinks":60,"scanned":5,"unreadHits":1,"rejected":["i=0 notUnread aria=n badge=n bold=n dot=n","i=1 notUnread aria=n badge=n bold=n dot=n","i=2 notUnread aria=n badge=n bold=n dot=n","i=3 notUnread aria=n badge=n bold=n dot=n"],"picked":"Jouda Mala Brokolice"} result="Jouda Mala Brokolice"
+[2026-05-06][22:48:01][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Unread] delayed count=1 sender="Jouda Mala Brokolice" activitySig="1:1:Jouda Mala Brokolice|pokec týmu Sound of"
+[2026-05-06][22:48:01][messengerx_lib::commands][DEBUG] [MessengerX][Notification][FocusProbe] focused=false minimized=Some(false) visible_api=Some(true)
+[2026-05-06][22:48:01][messengerx_lib::commands][INFO] [MessengerX][Notification][DECISION] count=1 old_count=1 focused=false enabled=true reason=sig-changed-floor-suppressed fire=false clear_badge=false prev_count=1 count_increased=false sig_changed=true elapsed=Some(1) activity_sig="1:1:Jouda Mala Brokolice|pokec týmu Sound of" state_after=Notified { count: 1, sig: "1:0:Jouda Mala Brokolice|pokec týmu Sound of", fired_at_secs: 1778107680 }
+[2026-05-06][22:48:02][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] snapshot candidates=5 +M1 snapshot="Jouda Mala Brokolice|pokec týmu Sound of Society|Jouda Mala Brokolice|Jouda Mala"
+[2026-05-06][22:48:04][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] snapshot candidates=5 +M1 snapshot="Jouda Mala Brokolice|pokec týmu Sound of Society|Jouda Mala Brokolice|Jouda Mala"
+[2026-05-06][22:48:05][messengerx_lib::commands][INFO] [MessengerX][JS] [DiagJS] [WS] [{"url":"edge-chat.messenger.com/chat?region=odn&sid=471008936984575&","out":1,"in":2,"bytes":651},{"url":"edge-chat.messenger.com/chat?region=odn&sid=6551691482628095","out":1,"in":1,"bytes":4},{"url":"gateway.messenger.com/ws/rpsignaling?x-dgw-appid=77202111287","out":1,"in":2,"bytes":3}]
+[2026-05-06][22:48:06][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] snapshot candidates=5 +M1 snapshot="Jouda Mala Brokolice|pokec týmu Sound of Society|Jouda Mala Brokolice|Jouda Mala"
+[2026-05-06][22:48:08][tao::platform_impl::platform::window_delegate][TRACE] Triggered `windowDidBecomeKey:`
+[2026-05-06][22:48:08][tao::platform_impl::platform::window_delegate][TRACE] Completed `windowDidBecomeKey:`
+[2026-05-06][22:48:08][tao::platform_impl::platform::app_delegate][TRACE] Triggered `applicationShouldHandleReopen`
+[2026-05-06][22:48:08][tao::platform_impl::platform::app_delegate][TRACE] Completed `applicationShouldHandleReopen`
+[2026-05-06][22:48:08][messengerx_lib][INFO] [MessengerX][Notification] Window gained focus — notification state reset to Idle
+[2026-05-06][22:48:08][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Activity] resetActivityState — seq/snapshot/sig/threadMut cleared
+[2026-05-06][22:48:08][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [Unread] immediate count=0 sender="" activitySig=""
+[2026-05-06][22:48:08][messengerx_lib::commands][DEBUG] [MessengerX][Notification][FocusProbe] focused=true minimized=Some(false) visible_api=Some(true)
+[2026-05-06][22:48:08][messengerx_lib::commands][INFO] [MessengerX][Notification][DECISION] count=0 old_count=1 focused=true enabled=true reason=idle-count-zero fire=false clear_badge=true prev_count=0 count_increased=false sig_changed=false elapsed=None activity_sig="" state_after=Idle
+[2026-05-06][22:48:09][tao::platform_impl::platform::window_delegate][TRACE] Triggered `windowDidResignKey:`
+[2026-05-06][22:48:09][tao::platform_impl::platform::window_delegate][TRACE] Completed `windowDidResignKey:`
+[2026-05-06][22:48:10][messengerx_lib::commands][INFO] [MessengerX][JS] [UnreadJS] [ThreadMut] batch size=6 source=body-fallback count=0
+[2026-05-06][22:48:13][messengerx_lib::commands][INFO] [MessengerX][JS] [DiagJS] [FocusHB] {"hasFocus":false,"visibility":"hidden","hidden":true,"url":"/e2ee/t/1325229952858678"}
+[2026-05-06][22:48:13][messengerx_lib::commands][INFO] [MessengerX][JS] [NotificationJS] [health] permission=granted __native__=true visibility=hidden hasFocus=false sw_regs=0 sw_ctrl=none
+[2026-05-06][22:48:13][messengerx_lib::commands][INFO] [MessengerX][JS] [DiagJS] [WS] [{"url":"edge-chat.messenger.com/chat?region=odn&sid=471008936984575&","out":1,"in":3,"bytes":1765},{"url":"gateway.messenger.com/ws/realtime?x-dgw-appid=77202111287187","out":1,"in":2,"bytes":3},{"url":"gateway.messenger.com/ws/streamcontroller?x-dgw-appid=772021","out":1,"in":2,"bytes":3}]
+^C
+Andreass-MacBook-Pro16:fb-messanger-crossplatform lasakondrej$

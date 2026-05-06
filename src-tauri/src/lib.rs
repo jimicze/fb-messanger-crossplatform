@@ -1692,6 +1692,41 @@ const DIAGNOSTIC_TELEMETRY_SCRIPT: &str = concat!(
     }
 
     // -----------------------------------------------------------------------
+    // 0. Early IPC availability probe (Fix 4 / Phase B diagnostics)
+    //
+    //    This MUST run before any other code so we know whether subsequent
+    //    dlog() calls will actually reach the Rust log file.
+    //
+    //    On Linux VMware / AppImage with EGL/DRI3 degradation, WebKitGTK can
+    //    fail to inject window.__TAURI__ into the page context even though
+    //    initialization_scripts normally deliver it unconditionally.  When that
+    //    happens every dlog() is silently swallowed — resulting in zero JS log
+    //    lines in messengerx.log (exact symptom observed in Phase A Linux logs).
+    //
+    //    We emit a console.log in addition to dlog() so that the probe result
+    //    is visible in the WebKit inspector even if IPC is broken.
+    // -----------------------------------------------------------------------
+    var _ipcAvailable = false;
+    var _ipcDiag = 'unknown';
+    try {
+        var _tauriType  = typeof window.__TAURI__;
+        var _coreType   = (_tauriType !== 'undefined') ? typeof window.__TAURI__.core   : 'n/a';
+        var _invokeType = (_coreType  !== 'n/a')       ? typeof window.__TAURI__.core.invoke : 'n/a';
+        _ipcAvailable = (_invokeType === 'function');
+        _ipcDiag = 'tauriType=' + _tauriType
+                 + ' coreType='   + _coreType
+                 + ' invokeType=' + _invokeType;
+    } catch(e) {
+        _ipcDiag = 'probe-threw: ' + String(e);
+    }
+    // Always emit to console (visible in WebKit inspector regardless of IPC).
+    try {
+        console.log('[MessengerX][DiagJS][IPCProbe] ipcAvailable=' + _ipcAvailable + ' ' + _ipcDiag);
+    } catch(_) {}
+    // Also attempt dlog — will succeed only if IPC works.
+    dlog('[IPCProbe] ipcAvailable=' + _ipcAvailable + ' ' + _ipcDiag);
+
+    // -----------------------------------------------------------------------
     // 1. Page-loaded ping (A5)
     // -----------------------------------------------------------------------
     var pingedDomReady = false;
@@ -2018,14 +2053,37 @@ const VISIBILITY_OVERRIDE_SCRIPT: &str = r#"(function() {
     }
 
     window.__messengerx_set_visible = setVisible;
-    window.__TAURI__.core.invoke('get_window_focused')
-        .then(function(focused) {
-            jlog('initial get_window_focused=' + String(focused));
-            setVisible(focused, 'ipc-resync');
-        })
-        .catch(function(e) {
-            jlog('get_window_focused failed: ' + e);
-        });
+
+    // Fix 3 (Linux IPC): wrap the top-level window.__TAURI__ access in try/catch.
+    //
+    // On VMware / AppImage / EGL-degraded WebKitGTK (Linux), window.__TAURI__ can
+    // be undefined even though initialization_scripts normally inject the Tauri IPC
+    // binding unconditionally.  Without this guard the bare property access at the
+    // top level of the IIFE throws a TypeError that silently aborts the script —
+    // preventing the "visibility override installed" log line and potentially leaving
+    // Messenger with a permanently-wrong visibilityState after a re-navigation.
+    //
+    // The .catch() already handles async failures; this try/catch handles the
+    // synchronous case where window.__TAURI__ itself (or .core) is undefined.
+    try {
+        window.__TAURI__.core.invoke('get_window_focused')
+            .then(function(focused) {
+                jlog('initial get_window_focused=' + String(focused));
+                setVisible(focused, 'ipc-resync');
+            })
+            .catch(function(e) {
+                jlog('get_window_focused IPC rejected: ' + String(e));
+            });
+    } catch(e) {
+        // IPC not yet available (window.__TAURI__ undefined or .core missing).
+        // The flag stays at its conservative default (_hidden=false → visible),
+        // which is the safer fallback: Messenger will attempt notifications rather
+        // than silently suppressing them.  The Rust-side WindowEvent::Focused handler
+        // and the is_minimized() poll thread will update the flag via
+        // window.__messengerx_set_visible() once IPC becomes available.
+        jlog('get_window_focused sync error (IPC unavailable at init): ' + String(e));
+    }
+
     jlog('visibility override installed');
 })();"#;
 
@@ -2209,8 +2267,6 @@ pub fn run() {
     #[cfg(target_os = "linux")]
     configure_linux_runtime_env();
 
-    log_platform_environment();
-
     tauri::Builder::default()
         .plugin(
             tauri_plugin_log::Builder::new()
@@ -2308,6 +2364,10 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     // delay with Rust-side cost (H3 Win11 white screen).
     let setup_started = std::time::Instant::now();
     log::info!("[MessengerX][Boot] setup_app start");
+    // Phase A diagnostic: log_platform_environment must run AFTER the log plugin
+    // is initialized (inside setup_app), not from run() where the logger is not yet
+    // active. This was the bug that caused all [Env] lines to be silently dropped.
+    log_platform_environment();
 
     if let Err(e) = services::notification::initialize() {
         log::warn!("[MessengerX] Failed to initialize native notifications: {e}");
@@ -2527,20 +2587,46 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
     // ------------------------------------------------------------------
     // 4c-2. Cross-platform: reset notification guard when the window gains
-    //       focus so that the NEXT new message always triggers a notification.
+    //       focus AND the unread count is 0 (messages already read).
     //
-    //       Without this, once a notification fires and the user opens the app
-    //       without a sustained count=0 period, the dedupe state could remain
-    //       in Notified/ZeroPending and suppress future messages.
+    //       Guard: we only reset when count == 0.  If count > 0 the user
+    //       has NOT yet read the pending messages; resetting to Idle here
+    //       would cause a duplicate notification on the next polling tick.
+    //
+    //       This also filters spurious WebView2 focus events on Windows
+    //       (H2-variant), where the runtime fires Focused(true) ~8x per
+    //       99 s without any user interaction.  Those events arrive while
+    //       count is still > 0, so the count guard silently skips them
+    //       and prevents erroneous notification re-fires.
+    //
+    //       When count == 0 and the window is truly focused (user has seen
+    //       the messages), resetting to Idle is correct: it ensures the
+    //       NEXT new message always triggers a notification immediately
+    //       rather than waiting for the 7-second ZeroPending→Idle timer.
     // ------------------------------------------------------------------
     {
         webview.on_window_event(move |event| {
             if let tauri::WindowEvent::Focused(true) = event {
+                use std::sync::atomic::Ordering;
+                let current_count = crate::commands::LAST_UNREAD_COUNT.load(Ordering::SeqCst);
+                if current_count > 0 && current_count != u32::MAX {
+                    // Messages still unread — do NOT reset; a real focus would be
+                    // handled via the ZeroPending→Idle path once count drops to 0.
+                    log::debug!(
+                        "[MessengerX][Notification] Focused(true) with count={} — skip reset (messages unread or spurious event)",
+                        current_count
+                    );
+                    return;
+                }
                 if let Ok(mut state) = crate::commands::NOTIF_STATE.lock() {
+                    if *state == crate::commands::NotifState::Idle {
+                        // Already idle — no-op, avoid log spam from repeated events.
+                        return;
+                    }
                     *state = crate::commands::NotifState::Idle;
                 }
                 log::info!(
-                    "[MessengerX][Notification] Window gained focus — notification state reset to Idle"
+                    "[MessengerX][Notification] Window gained focus (count=0) — notification state reset to Idle"
                 );
             }
         });

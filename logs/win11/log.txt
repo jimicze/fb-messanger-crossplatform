@@ -1,0 +1,16 @@
+[2026-05-06][23:00:54][messengerx_lib][INFO] [MessengerX][Boot] setup_app start
+[2026-05-06][23:00:54][messengerx_lib][INFO] [MessengerX][Boot] webview window built (online=true, t=563ms)
+[2026-05-06][23:00:54][messengerx_lib][INFO] [MessengerX][Boot] setup_app complete (t=580ms)
+[2026-05-06][23:00:54][messengerx_lib][INFO] [MessengerX][Boot] RunEvent::Ready fired
+[2026-05-06][23:00:54][messengerx_lib][INFO] [MessengerX] on_navigation: host=www.messenger.com url=https://www.messenger.com/
+[2026-05-06][23:00:54][messengerx_lib][INFO] [MessengerX][Notification] Window gained focus — notification state reset to Idle
+[2026-05-06][23:01:03][messengerx_lib][INFO] [MessengerX][Notification] Window gained focus — notification state reset to Idle
+[2026-05-06][23:01:21][messengerx_lib][INFO] [MessengerX] on_navigation: host=www.messenger.com url=https://www.messenger.com/e2ee/t/1325229952858678/
+[2026-05-06][23:01:21][messengerx_lib][INFO] [MessengerX][Notification] Window gained focus — notification state reset to Idle
+[2026-05-06][23:01:22][messengerx_lib][INFO] [MessengerX][Notification] Window gained focus — notification state reset to Idle
+[2026-05-06][23:02:11][messengerx_lib][INFO] [MessengerX][Notification] Window gained focus — notification state reset to Idle
+[2026-05-06][23:02:27][messengerx_lib][INFO] [MessengerX][Notification] Window gained focus — notification state reset to Idle
+[2026-05-06][23:02:27][messengerx_lib][INFO] [MessengerX][Notification] Window gained focus — notification state reset to Idle
+[2026-05-06][23:02:33][messengerx_lib][INFO] [MessengerX][Notification] Window gained focus — notification state reset to Idle
+
+

@@ -1,0 +1,73 @@
+andreas@andreas-VMware20-1:~$ '/home/andreas/Stažené/Messenger X_1.3.22_aarch64.AppImage' 
+/usr/lib/aarch64-linux-gnu/gvfs/libgvfscommon.so: undefined symbol: g_task_set_static_name
+Failed to load module: /usr/lib/aarch64-linux-gnu/gio/modules/libgvfsdbus.so
+Gtk-Message: 00:54:25.937: Failed to load module "canberra-gtk-module"
+Gtk-Message: 00:54:25.938: Failed to load module "canberra-gtk-module"
+[2026-05-06][22:54:25][messengerx_lib][INFO] [MessengerX][Boot] setup_app start
+libEGL warning: DRI3 error: Could not get DRI3 device
+libEGL warning: Ensure your X server supports DRI3 to get accelerated rendering
+VMware: No 3D enabled (0, Úspěch).
+libEGL warning: egl: failed to create dri2 screen
+libEGL warning: DRI2: failed to create screen
+VMware: No 3D enabled (0, Úspěch).
+libEGL warning: egl: failed to create dri2 screen
+libEGL warning: DRI2: failed to create screen
+[2026-05-06][22:54:26][messengerx_lib][INFO] [MessengerX][Boot] webview window built (online=true, t=216ms)
+[2026-05-06][22:54:26][messengerx_lib][INFO] [MessengerX][Boot] setup_app complete (t=233ms)
+[2026-05-06][22:54:26][messengerx_lib][INFO] [MessengerX][Boot] RunEvent::Ready fired
+/usr/lib/aarch64-linux-gnu/gvfs/libgvfscommon.so: undefined symbol: g_task_set_static_name
+Failed to load module: /usr/lib/aarch64-linux-gnu/gio/modules/libgvfsdbus.so
+[2026-05-06][22:54:26][messengerx_lib][INFO] [MessengerX][Visibility] Poll thread started: focused=false minimized=false visible=false
+[2026-05-06][22:54:26][messengerx_lib][INFO] [MessengerX][Visibility] WindowEvent::Focused(true)
+[2026-05-06][22:54:26][messengerx_lib][INFO] [MessengerX][Notification] Window gained focus — notification state reset to Idle
+Gtk-Message: 00:54:26.215: Failed to load module "canberra-gtk-module"
+/usr/lib/aarch64-linux-gnu/gvfs/libgvfscommon.so: undefined symbol: g_task_set_static_name
+Failed to load module: /usr/lib/aarch64-linux-gnu/gio/modules/libgvfsdbus.so
+Gtk-Message: 00:54:26.223: Failed to load module "canberra-gtk-module"
+/lib/aarch64-linux-gnu/libcurl-gnutls.so.4: undefined symbol: nghttp2_option_set_no_rfc9113_leading_and_trailing_ws_validation
+Failed to load module: /usr/lib/aarch64-linux-gnu/gio/modules/libgiolibproxy.so
+/usr/lib/aarch64-linux-gnu/gio/modules/libdconfsettings.so: undefined symbol: g_assertion_message_cmpint
+Failed to load module: /usr/lib/aarch64-linux-gnu/gio/modules/libdconfsettings.so
+VMware: No 3D enabled (0, Úspěch).
+libEGL warning: egl: failed to create dri2 screen
+libEGL warning: DRI2: failed to create screen
+VMware: No 3D enabled (0, Úspěch).
+libEGL warning: egl: failed to create dri2 screen
+libEGL warning: DRI2: failed to create screen
+[2026-05-06][22:54:26][messengerx_lib][INFO] [MessengerX] on_navigation: host=www.messenger.com url=https://www.messenger.com/
+[2026-05-06][22:54:26][messengerx_lib][INFO] [MessengerX][Visibility] Poll state changed: focused=true minimized=false visible=true
+[2026-05-06][22:54:26][messengerx_lib][INFO] [MessengerX] on_navigation: host=www.messenger.com url=https://www.messenger.com/e2ee/t/1325229952858678/
+/usr/lib/aarch64-linux-gnu/gvfs/libgvfscommon.so: undefined symbol: g_task_set_static_name
+Failed to load module: /usr/lib/aarch64-linux-gnu/gio/modules/libgvfsdbus.so
+Gtk-Message: 00:54:27.545: Failed to load module "canberra-gtk-module"
+Gtk-Message: 00:54:27.547: Failed to load module "canberra-gtk-module"
+VMware: No 3D enabled (0, Úspěch).
+libEGL warning: egl: failed to create dri2 screen
+libEGL warning: DRI2: failed to create screen
+VMware: No 3D enabled (0, Úspěch).
+libEGL warning: egl: failed to create dri2 screen
+libEGL warning: DRI2: failed to create screen
+[2026-05-06][22:54:29][messengerx_lib][INFO] [MessengerX] on_navigation: host=www.fbsbx.com url=https://www.fbsbx.com/maw_proxy_page/?__cci=FQARESIVAhn1jQEC5ALSAvoCJC4%2BQEZISkxOUFRYXF5gYmRqbHJ0eHqAAYIBhAGGAYgBigGMAZQBnAGeAaABpAG4Ac4B2gLeAeAB4gHqAewB7gHwAfQB%2FgGAAoYClgKaAqACsAIEBgoMDhASFhgcHiAiJigqLDAyNjg6PLICQkTqAmZucHa%2BAnyOAZABwgKSAZYBmAGaAeYCogHIAroCqAGsAa4BsAGyAbQBzgK6Ab4B1gLAAcIBygLGAcgBygHMAcwC0AHUAdgB2gHoAtQC8gLwAuQB6AH4AfoB4AL8AYoCxgKMAo4CkALYApgCogIYDU1lc3Nlbmdlckhvc3QYD21lc3NlbmdlcmRvdGNvbRgjWE1lc3NlbmdlckRvdENvbUNvbWV0TWFpbkNvbnRyb2xsZXIA.AarJd7qY1yf_Y-8RU7BrDaysrdVsFlckpzJoze0crVZutG81
+/usr/lib/aarch64-linux-gnu/gvfs/libgvfscommon.so: undefined symbol: g_task_set_static_name
+Failed to load module: /usr/lib/aarch64-linux-gnu/gio/modules/libgvfsdbus.so
+Gtk-Message: 00:54:30.208: Failed to load module "canberra-gtk-module"
+Gtk-Message: 00:54:30.210: Failed to load module "canberra-gtk-module"
+
+** (messengerx:6815): WARNING **: 00:54:51.199: atk-bridge: get_device_events_reply: unknown signature
+[2026-05-06][22:54:56][messengerx_lib][INFO] [MessengerX][Visibility] WindowEvent::Focused(false)
+[2026-05-06][22:54:56][messengerx_lib][INFO] [MessengerX][Visibility] Poll state changed: focused=false minimized=false visible=false
+[2026-05-06][22:55:02][messengerx_lib][INFO] [MessengerX][Visibility] WindowEvent::Focused(true)
+[2026-05-06][22:55:02][messengerx_lib][INFO] [MessengerX][Notification] Window gained focus — notification state reset to Idle
+[2026-05-06][22:55:02][messengerx_lib][INFO] [MessengerX][Visibility] Poll state changed: focused=true minimized=false visible=true
+[2026-05-06][22:55:09][messengerx_lib][INFO] [MessengerX][Visibility] WindowEvent::Focused(false)
+[2026-05-06][22:55:09][messengerx_lib][INFO] [MessengerX][Visibility] Poll state changed: focused=false minimized=true visible=false
+[2026-05-06][22:55:27][messengerx_lib][INFO] [MessengerX][Visibility] WindowEvent::Focused(true)
+[2026-05-06][22:55:27][messengerx_lib][INFO] [MessengerX][Notification] Window gained focus — notification state reset to Idle
+[2026-05-06][22:55:27][messengerx_lib][INFO] [MessengerX][Visibility] Poll state changed: focused=true minimized=false visible=true
+[2026-05-06][22:55:41][messengerx_lib][INFO] [MessengerX][Visibility] WindowEvent::Focused(false)
+[2026-05-06][22:55:41][messengerx_lib][INFO] [MessengerX][Visibility] Poll state changed: focused=false minimized=false visible=false
+[2026-05-06][22:55:42][messengerx_lib][INFO] [MessengerX][Visibility] WindowEvent::Focused(true)
+[2026-05-06][22:55:42][messengerx_lib][INFO] [MessengerX][Notification] Window gained focus — notification state reset to Idle
+[2026-05-06][22:55:42][messengerx_lib][INFO] [MessengerX][Visibility] Poll state changed: focused=true minimized=false visible=true
+andreas@andreas-VMware20-1:~$ ^C
+andreas@andreas-VMware20-1:~$ 

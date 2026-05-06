@@ -76,7 +76,7 @@ const MAX_ZOOM: f64 = 1.2;
 // ---------------------------------------------------------------------------
 
 /// Last known unread count; `u32::MAX` forces an update on first call.
-static LAST_UNREAD_COUNT: AtomicU32 = AtomicU32::new(u32::MAX);
+pub(crate) static LAST_UNREAD_COUNT: AtomicU32 = AtomicU32::new(u32::MAX);
 
 /// Unix-second timestamp of the last "empty activity_sig with count > 0" warning.
 /// Used to throttle that diagnostic to at most once every
