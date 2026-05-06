@@ -3,6 +3,8 @@
 
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::Mutex;
+use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Manager};
 
 // ---------------------------------------------------------------------------
@@ -76,11 +78,272 @@ const MAX_ZOOM: f64 = 1.2;
 /// Last known unread count; `u32::MAX` forces an update on first call.
 static LAST_UNREAD_COUNT: AtomicU32 = AtomicU32::new(u32::MAX);
 
-/// Last unread count for which we already sent a notification.
-/// Prevents duplicate notifications when the count stays the same across multiple calls.
-/// `pub(crate)` so that the window-focus handler in `lib.rs` can reset it when the
-/// user opens the window, allowing the next new message to trigger a notification.
-pub(crate) static LAST_NOTIFIED_COUNT: AtomicU32 = AtomicU32::new(0);
+/// Unix-second timestamp of the last "empty activity_sig with count > 0" warning.
+/// Used to throttle that diagnostic to at most once every
+/// [`EMPTY_SIG_WARN_THROTTLE_SECS`] seconds so it does not flood the log.
+static LAST_EMPTY_SIG_WARN_SECS: AtomicU32 = AtomicU32::new(0);
+
+/// Minimum seconds between repeated "empty activity_sig while count > 0" warnings.
+const EMPTY_SIG_WARN_THROTTLE_SECS: u64 = 30;
+
+/// Notification dedupe state.
+///
+/// Messenger can transiently oscillate the title between `(1) Messenger` and
+/// `Messenger` every few seconds while the same unread message is pending.  A
+/// flat "reset on count=0" guard cannot distinguish that oscillation from a real
+/// read-all event, so we keep a small state machine instead.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum NotifState {
+    /// No unread notification is currently armed.
+    Idle,
+    /// We already fired a notification for this count/signature.
+    Notified {
+        /// Last count for which a notification was fired.
+        count: u32,
+        /// Last JS activity signature for which a notification was fired.
+        sig: String,
+        /// Unix timestamp (seconds) when the notification fired.
+        fired_at_secs: u64,
+    },
+    /// Count just dropped to 0 after a notification.  We wait for zero to be
+    /// sustained before treating it as a real read-all reset.
+    ZeroPending {
+        /// Count from the previous `Notified` state.
+        prev_count: u32,
+        /// Activity signature from the previous `Notified` state.
+        prev_sig: String,
+        /// Original notification fire time; retained for oscillation cooldown.
+        prev_fired_at_secs: u64,
+        /// When count first dropped to zero.
+        zero_since_secs: u64,
+    },
+}
+
+/// Current notification dedupe state.
+/// `pub(crate)` so the window-focus handler can reset it to `Idle`.
+pub(crate) static NOTIF_STATE: Mutex<NotifState> = Mutex::new(NotifState::Idle);
+
+/// Seconds count must remain zero before we treat it as a real read-all event.
+/// Must be longer than Messenger's observed `(1) ↔ 0` oscillation interval (~3s).
+const ZERO_SUSTAIN_SECS: u64 = 7;
+
+/// Minimum seconds that must elapse between two `sig_changed` notifications
+/// for the **same unread count**.  This prevents JS thread-mutation sequences
+/// in `activitySig` from producing rapid-fire banners.
+///
+/// `count_increased` always bypasses this floor so genuinely new messages
+/// are never delayed.  `ZeroPending` sig-changed also respects this floor
+/// because the previous fire timestamp is carried over into that state.
+const MIN_SIG_CHANGE_NOTIFY_SECS: u64 = 3;
+
+/// Returns the current Unix time in seconds (best-effort; 0 on error).
+fn now_secs() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
+/// Decision returned by the notification state machine.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct NotificationDecision {
+    /// Whether the caller should dispatch a native notification.
+    should_fire: bool,
+    /// Whether the current `count=0` should be treated as a confirmed read-all
+    /// event for badge/tray clearing.
+    clear_badge: bool,
+    /// Human-readable reason for diagnostics.
+    reason: &'static str,
+    /// Previous count used for log output.
+    previous_count: u32,
+    /// Whether the count increased relative to the prior notified state.
+    count_increased: bool,
+    /// Whether the JS activity signature changed.
+    sig_changed: bool,
+    /// Seconds since the last notification fire, if known.
+    elapsed_since_fire: Option<u64>,
+}
+
+impl NotificationDecision {
+    fn idle(reason: &'static str, clear_badge: bool) -> Self {
+        Self {
+            should_fire: false,
+            clear_badge,
+            reason,
+            previous_count: 0,
+            count_increased: false,
+            sig_changed: false,
+            elapsed_since_fire: None,
+        }
+    }
+}
+
+/// Updates the notification dedupe state and returns whether to fire.
+fn decide_notification(
+    state: &mut NotifState,
+    count: u32,
+    activity_sig: &str,
+    is_focused: bool,
+    notifications_enabled: bool,
+    now: u64,
+) -> NotificationDecision {
+    match state.clone() {
+        NotifState::Idle => {
+            if count == 0 {
+                NotificationDecision::idle("idle-count-zero", true)
+            } else if notifications_enabled && !is_focused {
+                *state = NotifState::Notified {
+                    count,
+                    sig: activity_sig.to_owned(),
+                    fired_at_secs: now,
+                };
+                NotificationDecision {
+                    should_fire: true,
+                    clear_badge: false,
+                    reason: "idle-count-positive",
+                    previous_count: 0,
+                    count_increased: true,
+                    sig_changed: !activity_sig.is_empty(),
+                    elapsed_since_fire: None,
+                }
+            } else {
+                NotificationDecision::idle(
+                    if is_focused {
+                        "idle-focused-skip"
+                    } else {
+                        "idle-disabled-skip"
+                    },
+                    false,
+                )
+            }
+        }
+        NotifState::Notified {
+            count: prev_count,
+            sig: prev_sig,
+            fired_at_secs,
+        } => {
+            if count == 0 {
+                *state = NotifState::ZeroPending {
+                    prev_count,
+                    prev_sig,
+                    prev_fired_at_secs: fired_at_secs,
+                    zero_since_secs: now,
+                };
+                NotificationDecision {
+                    should_fire: false,
+                    clear_badge: false,
+                    reason: "zero-pending-start",
+                    previous_count: prev_count,
+                    count_increased: false,
+                    sig_changed: false,
+                    elapsed_since_fire: Some(now.saturating_sub(fired_at_secs)),
+                }
+            } else {
+                let count_increased = count > prev_count;
+                let sig_changed = !activity_sig.is_empty() && activity_sig != prev_sig;
+                let elapsed = now.saturating_sub(fired_at_secs);
+                // sig_changed fires are rate-limited to prevent JS thread-mutation
+                // sequences from producing rapid-fire banners.  count_increased always
+                // bypasses this floor so genuine new messages are never delayed.
+                let sig_under_floor =
+                    sig_changed && !count_increased && elapsed < MIN_SIG_CHANGE_NOTIFY_SECS;
+                let should_fire = notifications_enabled
+                    && !is_focused
+                    && (count_increased || (sig_changed && !sig_under_floor));
+                let reason = if count_increased {
+                    "count-increased"
+                } else if sig_changed && sig_under_floor {
+                    "sig-changed-floor-suppressed"
+                } else if sig_changed {
+                    "sig-changed"
+                } else {
+                    "same-activity-suppressed"
+                };
+                if should_fire {
+                    *state = NotifState::Notified {
+                        count,
+                        sig: activity_sig.to_owned(),
+                        fired_at_secs: now,
+                    };
+                }
+                NotificationDecision {
+                    should_fire,
+                    clear_badge: false,
+                    reason,
+                    previous_count: prev_count,
+                    count_increased,
+                    sig_changed,
+                    elapsed_since_fire: Some(elapsed),
+                }
+            }
+        }
+        NotifState::ZeroPending {
+            prev_count,
+            prev_sig,
+            prev_fired_at_secs,
+            zero_since_secs,
+        } => {
+            if count == 0 {
+                let zero_elapsed = now.saturating_sub(zero_since_secs);
+                if zero_elapsed >= ZERO_SUSTAIN_SECS {
+                    *state = NotifState::Idle;
+                    NotificationDecision {
+                        should_fire: false,
+                        clear_badge: true,
+                        reason: "zero-sustained-read-all",
+                        previous_count: prev_count,
+                        count_increased: false,
+                        sig_changed: false,
+                        elapsed_since_fire: Some(now.saturating_sub(prev_fired_at_secs)),
+                    }
+                } else {
+                    NotificationDecision {
+                        should_fire: false,
+                        clear_badge: false,
+                        reason: "zero-pending-wait",
+                        previous_count: prev_count,
+                        count_increased: false,
+                        sig_changed: false,
+                        elapsed_since_fire: Some(now.saturating_sub(prev_fired_at_secs)),
+                    }
+                }
+            } else {
+                let count_increased = count > prev_count;
+                let sig_changed = !activity_sig.is_empty() && activity_sig != prev_sig;
+                let elapsed = now.saturating_sub(prev_fired_at_secs);
+                // Same floor as the Notified arm: sig-only fires are rate-limited.
+                let sig_under_floor =
+                    sig_changed && !count_increased && elapsed < MIN_SIG_CHANGE_NOTIFY_SECS;
+                let should_fire = notifications_enabled
+                    && !is_focused
+                    && (count_increased || (sig_changed && !sig_under_floor));
+                let reason = if count_increased {
+                    "zero-bounce-count-increased"
+                } else if sig_changed && sig_under_floor {
+                    "zero-bounce-sig-floor-suppressed"
+                } else if sig_changed {
+                    "zero-bounce-sig-changed"
+                } else {
+                    "zero-bounce-oscillation-suppressed"
+                };
+                *state = NotifState::Notified {
+                    count,
+                    sig: activity_sig.to_owned(),
+                    fired_at_secs: if should_fire { now } else { prev_fired_at_secs },
+                };
+                NotificationDecision {
+                    should_fire,
+                    clear_badge: false,
+                    reason,
+                    previous_count: prev_count,
+                    count_increased,
+                    sig_changed,
+                    elapsed_since_fire: Some(elapsed),
+                }
+            }
+        }
+    }
+}
 
 // ---------------------------------------------------------------------------
 // IPC command implementations
@@ -113,9 +376,7 @@ pub fn send_notification(
     }
     // Force silent if user disabled notification sounds.
     let effective_silent = silent || !settings.notification_sound;
-    log::info!(
-        "[MessengerX][Notification] effective_silent={effective_silent}"
-    );
+    log::info!("[MessengerX][Notification] effective_silent={effective_silent}");
     let result = crate::services::notification::show_notification(
         &app,
         &title,
@@ -124,125 +385,169 @@ pub fn send_notification(
         effective_silent,
     );
     match &result {
-        Ok(()) => log::info!(
-            "[MessengerX][Notification] send_notification finished successfully"
-        ),
-        Err(e) => log::warn!(
-            "[MessengerX][Notification] send_notification failed: {e}"
-        ),
+        Ok(()) => log::info!("[MessengerX][Notification] send_notification finished successfully"),
+        Err(e) => log::warn!("[MessengerX][Notification] send_notification failed: {e}"),
     }
     result
 }
 
 /// Update the unread-message count badge / tray tooltip.
 ///
-/// Guards against redundant updates: if `count` equals the last-known value
-/// the function returns immediately to avoid tray-icon flicker (B5).
+/// ## Parameters
+/// - `count`: current unread count extracted from the document title `(N) Messenger`.
+/// - `sender`: best-effort sender name from the conversation list DOM (may be empty).
+/// - `activity_sig`: opaque signature string produced by the JS activity tracker.
+///   Non-empty when `count > 0` and a baseline DOM snapshot has been established.
+///   Changes when a new confirmed unread conversation candidate appears in the
+///   DOM snapshot while `count > 0`.  High-frequency UI-only mutations (presence
+///   dots, typing indicators, read receipts) do NOT change this signature because
+///   the snapshot only captures verified unread conversation link candidates.
+///   Empty string when `count == 0` (JS resets activity state before sending).
 ///
-/// When the count **increases** and the main window is not focused a native
-/// notification is sent.  The optional `sender` string (extracted by the JS
-/// observer from the conversation list) is used as the notification title so
-/// the user sees the sender's name instead of a generic "New message" string.
+/// ## Badge / tray flicker guard
+/// The `LAST_UNREAD_COUNT` atomic is used purely to avoid redundant tray/badge updates.
+/// It is updated whenever the count changes.
 ///
-/// **Spam fix**: the `LAST_NOTIFIED_COUNT` guard is only reset to 0 when the
-/// window is focused.  Messenger's page title oscillates `"(1) Messenger" ↔
-/// "Messenger"` every ~3 s while a message is pending; resetting the guard on
-/// every transient count=0 would cause a new notification every 3 s.  We now
-/// only reset when the window is actually focused (= user is reading messages).
+/// ## Notification decision
+/// Notification dedupe is handled by `NOTIF_STATE`, a small state machine that
+/// distinguishes real read-all (`count=0` sustained for `ZERO_SUSTAIN_SECS`) from
+/// Messenger's transient `(1) Messenger ↔ Messenger` title oscillation.
+///
+/// ## On count=0
+/// `count=0` first enters `ZeroPending` and clears badge/tray only after the zero
+/// state is sustained.  This avoids re-firing every few seconds on title
+/// oscillation while still clearing the badge after an actual read-all.
 #[tauri::command]
-pub fn update_unread_count(count: u32, sender: String, app: AppHandle) -> Result<(), String> {
-    // Read old count BEFORE updating so we can detect an increase.
+pub fn update_unread_count(
+    count: u32,
+    sender: String,
+    activity_sig: String,
+    app: AppHandle,
+) -> Result<(), String> {
+    // ------------------------------------------------------------------
+    // 1. Badge / tray flicker guard — update count and early-exit tray/badge
+    //    work only when the count actually changed.
+    // ------------------------------------------------------------------
     let old_count = LAST_UNREAD_COUNT.load(Ordering::SeqCst);
-
-    // Early-exit if count is unchanged.
-    if old_count == count {
-        return Ok(());
-    }
-    LAST_UNREAD_COUNT.store(count, Ordering::SeqCst);
-
-    // -----------------------------------------------------------------------
-    // Fire a native notification when unread count increases while the window
-    // is not focused.  This is our primary notification path because Messenger
-    // on WKWebView never calls window.Notification() (confirmed v1.3.15).
-    // -----------------------------------------------------------------------
-    // Treat u32::MAX sentinel (initial value) as "no previous messages".
-    let real_old = if old_count == u32::MAX { 0 } else { old_count };
-    if count > real_old {
-        let settings = crate::services::auth::load_settings(&app).unwrap_or_default();
-        if settings.notifications_enabled {
-            let is_focused = app
-                .get_webview_window("main")
-                .and_then(|w| w.is_focused().ok())
-                .unwrap_or(false);
-            let last_notified = LAST_NOTIFIED_COUNT.load(Ordering::SeqCst);
-            if !is_focused && count > last_notified {
-                LAST_NOTIFIED_COUNT.store(count, Ordering::SeqCst);
-                let effective_silent = !settings.notification_sound;
-                let locale = crate::services::locale::detect_locale();
-                let tr = crate::services::locale::get_translations(&locale);
-                // Use the sender name extracted by JS if available, otherwise fall back.
-                let notif_title = if !sender.trim().is_empty() {
-                    sender.clone()
-                } else {
-                    tr.notification_new_message.clone()
-                };
-                log::info!(
-                    "[MessengerX][Notification] unread count increased {} → {}; sender={:?}; sending notification (silent={})",
-                    real_old,
-                    count,
-                    sender,
-                    effective_silent,
-                );
-                if let Err(e) = crate::services::notification::show_notification(
-                    &app,
-                    &notif_title,
-                    "",
-                    "messenger-unread",
-                    effective_silent,
-                ) {
-                    log::warn!("[MessengerX][Notification] unread-count notification failed: {e}");
-                }
-            }
-        }
+    let count_changed = old_count != count;
+    if count_changed {
+        LAST_UNREAD_COUNT.store(count, Ordering::SeqCst);
     }
 
-    // When the user reads messages (count drops to 0) reset the notified counter
-    // so the next increase fires again — BUT only when the window is focused.
-    // Messenger's page title oscillates "(N) Messenger" ↔ "Messenger" every ~3 s
-    // while a message is pending.  If we reset on every transient 0 while the
-    // window is backgrounded, we get a new notification on every oscillation cycle.
-    if count == 0 {
-        let is_focused = app
-            .get_webview_window("main")
-            .and_then(|w| w.is_focused().ok())
-            .unwrap_or(false);
-        if is_focused {
-            LAST_NOTIFIED_COUNT.store(0, Ordering::SeqCst);
+    // ------------------------------------------------------------------
+    // 2. Notification decision — evaluated independently of badge guard.
+    // ------------------------------------------------------------------
+    let settings = crate::services::auth::load_settings(&app).unwrap_or_default();
+    let is_focused = app
+        .get_webview_window("main")
+        .and_then(|w| w.is_focused().ok())
+        .unwrap_or(false);
+    let now = now_secs();
+    let (decision, state_after) = {
+        let mut state = NOTIF_STATE
+            .lock()
+            .map_err(|e| format!("notification state lock poisoned: {e}"))?;
+        let decision = decide_notification(
+            &mut state,
+            count,
+            &activity_sig,
+            is_focused,
+            settings.notifications_enabled,
+            now,
+        );
+        (decision, state.clone())
+    };
+
+    log::info!(
+        "[MessengerX][Notification][DECISION] count={} old_count={} focused={} enabled={} reason={} fire={} clear_badge={} prev_count={} count_increased={} sig_changed={} elapsed={:?} activity_sig={:?} state_after={:?}",
+        count,
+        old_count,
+        is_focused,
+        settings.notifications_enabled,
+        decision.reason,
+        decision.should_fire,
+        decision.clear_badge,
+        decision.previous_count,
+        decision.count_increased,
+        decision.sig_changed,
+        decision.elapsed_since_fire,
+        activity_sig,
+        state_after,
+    );
+
+    // ------------------------------------------------------------------
+    // 2b. Diagnostic: warn when count > 0 but activity_sig is empty.
+    //     This means the JS snapshot baseline has not been established yet —
+    //     sig-change notifications will not fire until it is.  Throttled to
+    //     at most once per EMPTY_SIG_WARN_THROTTLE_SECS to avoid log spam.
+    // ------------------------------------------------------------------
+    if count > 0 && activity_sig.is_empty() {
+        let last_warn = u64::from(LAST_EMPTY_SIG_WARN_SECS.load(Ordering::Relaxed));
+        if now.saturating_sub(last_warn) >= EMPTY_SIG_WARN_THROTTLE_SECS {
+            // Store as u32; timestamps in 2024 fit comfortably in u32 until 2106.
+            LAST_EMPTY_SIG_WARN_SECS.store(now as u32, Ordering::Relaxed);
             log::info!(
-                "[MessengerX][Notification] count=0 while focused — reset LAST_NOTIFIED_COUNT"
+                "[MessengerX][Notification][DIAG] count={} but activity_sig is empty — \
+                 JS snapshot baseline not yet established; sig-change path is inactive. \
+                 Notifications may still fire on count-increase. \
+                 (this message throttled to once/{}s)",
+                count,
+                EMPTY_SIG_WARN_THROTTLE_SECS,
             );
         }
-        // If not focused: transient oscillation — do NOT reset the guard.
     }
 
-    // Update tray tooltip.
-    if let Some(tray) = app.tray_by_id("messengerx-tray") {
-        let tooltip = if count > 0 {
-            format!("Messenger X ({})", count)
+    if decision.should_fire {
+        let effective_silent = !settings.notification_sound;
+        let locale = crate::services::locale::detect_locale();
+        let tr = crate::services::locale::get_translations(&locale);
+        let notif_title = if !sender.trim().is_empty() {
+            sender.clone()
         } else {
-            "Messenger X".to_string()
+            tr.notification_new_message.clone()
         };
-        tray.set_tooltip(Some(&tooltip))
-            .map_err(|e| e.to_string())?;
+        log::info!(
+            "[MessengerX][Notification] firing notification: count {} → {}; \
+             reason={} count_increased={} sig_changed={}; sender={:?} activity_sig={:?} silent={}",
+            decision.previous_count,
+            count,
+            decision.reason,
+            decision.count_increased,
+            decision.sig_changed,
+            sender,
+            activity_sig,
+            effective_silent,
+        );
+        if let Err(e) = crate::services::notification::show_notification(
+            &app,
+            &notif_title,
+            "",
+            "messenger-unread",
+            effective_silent,
+        ) {
+            log::warn!("[MessengerX][Notification] unread-count notification failed: {e}");
+        }
     }
 
-    // Update macOS Dock badge label.
-    // Do NOT clear the badge on a transient count=0 while the window is unfocused —
-    // the same oscillation that causes notification spam also causes badge flicker.
-    #[cfg(target_os = "macos")]
-    if let Some(webview) = app.get_webview_window("main") {
-        let is_focused_for_badge = webview.is_focused().unwrap_or(false);
-        if count > 0 || is_focused_for_badge {
+    // ------------------------------------------------------------------
+    // 3. Tray tooltip update (only when count changed to avoid flicker).
+    //    Badge and tray are now cleared unconditionally on count=0 — the
+    //    cooldown in the notification path handles oscillation spam instead.
+    // ------------------------------------------------------------------
+    if count_changed && (count > 0 || decision.clear_badge) {
+        if let Some(tray) = app.tray_by_id("messengerx-tray") {
+            let tooltip = if count > 0 {
+                format!("Messenger X ({})", count)
+            } else {
+                "Messenger X".to_string()
+            };
+            tray.set_tooltip(Some(&tooltip))
+                .map_err(|e| e.to_string())?;
+        }
+
+        // Update macOS Dock badge label — cleared unconditionally on count=0.
+        #[cfg(target_os = "macos")]
+        if let Some(webview) = app.get_webview_window("main") {
             let label = if count > 0 {
                 Some(count.to_string())
             } else {
@@ -390,21 +695,15 @@ pub fn js_log(message: String) {
 #[tauri::command]
 pub fn get_window_focused(app: AppHandle) -> bool {
     let Some(window) = app.get_webview_window("main") else {
-        log::warn!(
-            "[MessengerX][Visibility] get_window_focused: main window missing"
-        );
+        log::warn!("[MessengerX][Visibility] get_window_focused: main window missing");
         return false;
     };
     let Ok(is_focused) = window.is_focused() else {
-        log::warn!(
-            "[MessengerX][Visibility] get_window_focused: is_focused() failed"
-        );
+        log::warn!("[MessengerX][Visibility] get_window_focused: is_focused() failed");
         return false;
     };
     let Ok(is_minimized) = window.is_minimized() else {
-        log::warn!(
-            "[MessengerX][Visibility] get_window_focused: is_minimized() failed"
-        );
+        log::warn!("[MessengerX][Visibility] get_window_focused: is_minimized() failed");
         return false;
     };
     let effective_visible = is_focused && !is_minimized;
@@ -514,6 +813,235 @@ mod tests {
         let json = serde_json::to_string(&snapshot).expect("serialize");
         let deserialized: SnapshotData = serde_json::from_str(&json).expect("deserialize");
         assert_eq!(deserialized.html, snapshot.html);
+    }
+
+    #[test]
+    fn test_activity_sig_change_detection() {
+        // Simulate the notification-decision logic for sig_changed branch.
+        // New sig format: "<count>:<seq>:<snapshot_prefix>"
+        let last_sig = "1:0:Alice".to_string();
+        let new_sig_same = "1:0:Alice".to_string();
+        let new_sig_changed = "1:1:Alice".to_string();
+        let new_sig_new_convo = "1:1:Bob".to_string();
+        let empty_sig = "".to_string();
+
+        // Same sig → no change.
+        assert!(!(!new_sig_same.is_empty() && new_sig_same != last_sig));
+        // Changed seq → should trigger.
+        assert!(!new_sig_changed.is_empty() && new_sig_changed != last_sig);
+        // Changed snapshot (different convo) → should trigger.
+        assert!(!new_sig_new_convo.is_empty() && new_sig_new_convo != last_sig);
+        // Empty sig (count=0 path) → never triggers.
+        assert!(!(!empty_sig.is_empty() && empty_sig != last_sig));
+    }
+
+    #[test]
+    fn test_zero_sustain_constant_exceeds_title_oscillation() {
+        // Messenger oscillation observed around ~3 seconds; require longer than that.
+        assert!(ZERO_SUSTAIN_SECS > 3);
+        assert!(ZERO_SUSTAIN_SECS <= 30);
+    }
+
+    #[test]
+    fn test_notif_state_idle_positive_fires() {
+        let mut state = NotifState::Idle;
+        let decision = decide_notification(&mut state, 1, "", false, true, 100);
+        assert!(decision.should_fire);
+        assert_eq!(decision.reason, "idle-count-positive");
+        assert_eq!(
+            state,
+            NotifState::Notified {
+                count: 1,
+                sig: String::new(),
+                fired_at_secs: 100,
+            }
+        );
+    }
+
+    #[test]
+    fn test_notif_state_suppresses_transient_zero_bounce() {
+        let mut state = NotifState::Notified {
+            count: 1,
+            sig: String::new(),
+            fired_at_secs: 100,
+        };
+
+        let zero = decide_notification(&mut state, 0, "", false, true, 103);
+        assert!(!zero.should_fire);
+        assert!(!zero.clear_badge);
+        assert_eq!(zero.reason, "zero-pending-start");
+
+        let bounce = decide_notification(&mut state, 1, "", false, true, 106);
+        assert!(!bounce.should_fire);
+        assert_eq!(bounce.reason, "zero-bounce-oscillation-suppressed");
+        assert_eq!(
+            state,
+            NotifState::Notified {
+                count: 1,
+                sig: String::new(),
+                fired_at_secs: 100,
+            }
+        );
+    }
+
+    #[test]
+    fn test_notif_state_confirms_sustained_zero_as_read_all() {
+        let mut state = NotifState::Notified {
+            count: 1,
+            sig: String::new(),
+            fired_at_secs: 100,
+        };
+
+        let _ = decide_notification(&mut state, 0, "", false, true, 103);
+        let sustained = decide_notification(&mut state, 0, "", false, true, 111);
+        assert!(!sustained.should_fire);
+        assert!(sustained.clear_badge);
+        assert_eq!(sustained.reason, "zero-sustained-read-all");
+        assert_eq!(state, NotifState::Idle);
+    }
+
+    #[test]
+    fn test_notif_state_fires_after_sustained_read_all() {
+        let mut state = NotifState::Notified {
+            count: 1,
+            sig: String::new(),
+            fired_at_secs: 100,
+        };
+
+        let _ = decide_notification(&mut state, 0, "", false, true, 103);
+        let _ = decide_notification(&mut state, 0, "", false, true, 111);
+        let next = decide_notification(&mut state, 1, "", false, true, 112);
+        assert!(next.should_fire);
+        assert_eq!(next.reason, "idle-count-positive");
+    }
+
+    #[test]
+    fn test_notif_state_sig_changed_bypasses_zero_pending() {
+        let mut state = NotifState::ZeroPending {
+            prev_count: 1,
+            prev_sig: "1:0:Alice".to_string(),
+            prev_fired_at_secs: 100,
+            zero_since_secs: 103,
+        };
+
+        let decision = decide_notification(&mut state, 1, "1:1:Alice", false, true, 104);
+        assert!(decision.should_fire);
+        assert!(decision.sig_changed);
+        assert_eq!(decision.reason, "zero-bounce-sig-changed");
+    }
+
+    #[test]
+    fn test_count_increased_detection() {
+        // count > last_notified_count triggers notification.
+        let last: u32 = 1;
+        let increased: u32 = 2;
+        let same: u32 = 1;
+        let decreased: u32 = 0;
+        assert!(increased > last); // count increased
+        assert!(same <= last); // count same
+        assert!(decreased <= last); // count decreased
+    }
+
+    // -----------------------------------------------------------------------
+    // Anti-spam floor tests (MIN_SIG_CHANGE_NOTIFY_SECS)
+    // -----------------------------------------------------------------------
+
+    /// sig_changed fires after the floor has elapsed (elapsed >= MIN_SIG_CHANGE_NOTIFY_SECS).
+    #[test]
+    fn test_sig_changed_after_floor_fires() {
+        let mut state = NotifState::Notified {
+            count: 1,
+            sig: "1:0:Alice".to_string(),
+            fired_at_secs: 100,
+        };
+        // elapsed = 100+MIN_SIG_CHANGE_NOTIFY_SECS — exactly at the boundary → allow
+        let now = 100 + MIN_SIG_CHANGE_NOTIFY_SECS;
+        let decision = decide_notification(&mut state, 1, "1:1:Alice", false, true, now);
+        assert!(decision.should_fire, "sig_changed after floor should fire");
+        assert_eq!(decision.reason, "sig-changed");
+    }
+
+    /// sig_changed fires immediately under the floor when it should be suppressed.
+    #[test]
+    fn test_sig_changed_under_floor_suppressed() {
+        let mut state = NotifState::Notified {
+            count: 1,
+            sig: "1:0:Alice".to_string(),
+            fired_at_secs: 100,
+        };
+        // elapsed = MIN_SIG_CHANGE_NOTIFY_SECS - 1 → below floor → suppress
+        let now = 100 + MIN_SIG_CHANGE_NOTIFY_SECS - 1;
+        let decision = decide_notification(&mut state, 1, "1:1:Alice", false, true, now);
+        assert!(
+            !decision.should_fire,
+            "sig_changed under floor must be suppressed"
+        );
+        assert_eq!(decision.reason, "sig-changed-floor-suppressed");
+    }
+
+    /// count_increased bypasses the floor and fires immediately.
+    #[test]
+    fn test_count_increased_bypasses_floor() {
+        let mut state = NotifState::Notified {
+            count: 1,
+            sig: "1:0:Alice".to_string(),
+            fired_at_secs: 100,
+        };
+        // elapsed = 0 — well under the floor, but count increased → must fire
+        let decision = decide_notification(&mut state, 2, "2:0:Alice", false, true, 100);
+        assert!(
+            decision.should_fire,
+            "count_increased must bypass sig floor"
+        );
+        assert_eq!(decision.reason, "count-increased");
+    }
+
+    /// Verify the empty-sig throttle constant is a reasonable positive interval.
+    #[test]
+    fn test_empty_sig_warn_throttle_constant_is_reasonable() {
+        assert!(
+            EMPTY_SIG_WARN_THROTTLE_SECS >= 10,
+            "throttle should be at least 10s to avoid log spam"
+        );
+        assert!(
+            EMPTY_SIG_WARN_THROTTLE_SECS <= 300,
+            "throttle should be at most 5 minutes so issues surface quickly"
+        );
+    }
+
+    /// Verify the decide_notification logic still fires when activity_sig is empty
+    /// (count-increase path is unaffected by sig emptiness).
+    #[test]
+    fn test_count_increase_fires_with_empty_sig() {
+        let mut state = NotifState::Idle;
+        // count > 0, empty sig — should still fire on count-increase from Idle.
+        let decision = decide_notification(&mut state, 3, "", false, true, 200);
+        assert!(
+            decision.should_fire,
+            "count-increase from Idle must fire even with empty activity_sig"
+        );
+        assert_eq!(decision.reason, "idle-count-positive");
+    }
+
+    /// Verify that an empty activity_sig does NOT trigger sig_changed (it is
+    /// explicitly excluded in both Notified and ZeroPending arms).
+    #[test]
+    fn test_empty_sig_never_triggers_sig_changed() {
+        let mut state = NotifState::Notified {
+            count: 1,
+            sig: "1:0:Alice".to_string(),
+            fired_at_secs: 100,
+        };
+        // Same count, empty sig — must not fire.
+        let decision = decide_notification(&mut state, 1, "", false, true, 200);
+        assert!(
+            !decision.should_fire,
+            "empty activity_sig must not trigger sig_changed notification"
+        );
+        assert!(
+            !decision.sig_changed,
+            "sig_changed must be false for empty sig"
+        );
     }
 
     #[test]

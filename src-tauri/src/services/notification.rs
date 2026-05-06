@@ -10,11 +10,18 @@
 //! `tauri-plugin-notification` (direct D-Bus).
 //!
 //! ## macOS strategy
-//! On macOS we bypass `tauri-plugin-notification` / `notify-rust` and use the
-//! modern `UNUserNotificationCenter` API directly. The legacy backend only
-//! delivers notifications to Notification Center on newer macOS releases,
-//! whereas the modern API lets us request permission and force foreground
-//! presentation as a banner.
+//! **Release (inside `.app` bundle):** Uses `UNUserNotificationCenter` directly —
+//! the modern UserNotifications API that delivers banners to Notification Center
+//! and lets us request permission and force foreground presentation.
+//!
+//! **Fallback:** Calling `UNUserNotificationCenter` /
+//! `currentNotificationCenter()` outside a proper `.app` bundle crashes with
+//! `NSInternalInconsistencyException`, so dev mode uses `/usr/bin/osascript`.
+//! Release builds still use UserNotifications first, but can fall back to
+//! `osascript` if the system accepts a request and then drops it before it appears
+//! in delivered notifications.  The AppleScript program is passed via `argv` (not
+//! a shell string), and notification text is escaped as AppleScript string
+//! literals.
 
 use tauri::AppHandle;
 #[cfg(not(target_os = "macos"))]
@@ -37,12 +44,13 @@ use objc2::{
     MainThreadOnly,
 };
 #[cfg(target_os = "macos")]
-use objc2_foundation::{MainThreadMarker, NSError, NSObjectProtocol, NSString};
+use objc2_foundation::{MainThreadMarker, NSArray, NSError, NSObjectProtocol, NSString};
 #[cfg(target_os = "macos")]
 use objc2_user_notifications::{
-    UNAuthorizationOptions, UNMutableNotificationContent, UNNotification,
-    UNNotificationPresentationOptions, UNNotificationRequest, UNNotificationSound,
-    UNUserNotificationCenter, UNUserNotificationCenterDelegate,
+    UNAuthorizationOptions, UNAuthorizationStatus, UNMutableNotificationContent, UNNotification,
+    UNNotificationPresentationOptions, UNNotificationRequest, UNNotificationSetting,
+    UNNotificationSettings, UNNotificationSound, UNUserNotificationCenter,
+    UNUserNotificationCenterDelegate,
 };
 
 #[cfg(target_os = "macos")]
@@ -64,6 +72,12 @@ define_class!(
             notification: &UNNotification,
             completion_handler: &block2::DynBlock<dyn Fn(UNNotificationPresentationOptions)>,
         ) {
+            eprintln!(
+                "[MessengerX][NotifyHelper][Delegate] willPresent id={:?} title={:?} sound={}",
+                notification.request().identifier().to_string(),
+                notification.request().content().title().to_string(),
+                notification.request().content().sound().is_some(),
+            );
             let mut options =
                 UNNotificationPresentationOptions::Banner | UNNotificationPresentationOptions::List;
             if notification.request().content().sound().is_some() {
@@ -125,12 +139,10 @@ pub fn show_notification(
         let _ = app;
         let result = show_via_user_notifications(title, body, tag, silent);
         match &result {
-            Ok(()) => log::info!(
-                "[MessengerX][Notification] macOS notification enqueued successfully"
-            ),
-            Err(e) => log::warn!(
-                "[MessengerX][Notification] macOS notification failed: {e}"
-            ),
+            Ok(()) => {
+                log::info!("[MessengerX][Notification] macOS notification enqueued successfully")
+            }
+            Err(e) => log::warn!("[MessengerX][Notification] macOS notification failed: {e}"),
         }
         result
     }
@@ -157,20 +169,507 @@ pub fn show_notification(
     }
 }
 
+/// Returns `true` when the current process executable is located inside a
+/// macOS `.app` bundle (i.e. a release/distribution build).
+///
+/// `UNUserNotificationCenter` requires a valid `.app` bundle context and will
+/// crash with `NSInternalInconsistencyException` when the binary is run
+/// directly (e.g. `tauri dev` / `cargo run`).  Use this guard to select the
+/// appropriate notification path.
+#[cfg(target_os = "macos")]
+fn is_running_in_macos_app_bundle() -> bool {
+    std::env::current_exe()
+        .map(|p| p.to_string_lossy().contains(".app/Contents/MacOS"))
+        .unwrap_or(false)
+}
+
+/// Dispatch a notification directly via `UNUserNotificationCenter`, bypassing
+/// all dev-mode guards (osascript fallback, subprocess delegation).
+///
+/// This is the entry-point for the CLI `--notify` helper mode: the binary is
+/// already running **inside** the debug `.app` bundle, so the bundle context
+/// is valid.  Calling this skips `show_via_user_notifications` (which would
+/// re-check the bundle guard and potentially recurse into the subprocess path)
+/// and goes straight to the UNUserNotificationCenter enqueue.
+///
+/// Exported as `pub(crate)` so that `lib.rs` can expose it as a `pub` function
+/// to `main.rs` without making internal notification helpers part of the crate
+/// public API.
+///
+/// # Errors
+/// Returns `Err` if UNUserNotificationCenter initialisation or enqueue fails.
+#[cfg(target_os = "macos")]
+pub(crate) fn dispatch_bundle_notification(
+    title: &str,
+    body: &str,
+    silent: bool,
+) -> Result<(), String> {
+    // Initialise the notification center (sets delegate, requests permission).
+    // This call is idempotent — the OnceLock inside `initialize` ensures it
+    // runs only once per process.
+    initialize()?;
+
+    let center = UNUserNotificationCenter::currentNotificationCenter();
+    log_macos_notification_settings(&center, "helper-before-enqueue");
+    log_macos_delivered_count(&center, "helper-before-enqueue");
+    log_macos_pending_count(&center, "helper-before-enqueue");
+    let content = UNMutableNotificationContent::new();
+    content.setTitle(&NSString::from_str(title));
+    content.setBody(&NSString::from_str(body));
+
+    if !silent {
+        let sound = UNNotificationSound::defaultSound();
+        content.setSound(Some(&sound));
+        eprintln!("[MessengerX][NotifyHelper] sound=default (silent=false)");
+    } else {
+        eprintln!("[MessengerX][NotifyHelper] sound omitted (silent=true)");
+    }
+
+    let identifier = NSString::from_str(&build_macos_notification_identifier("messenger-unread"));
+    let request =
+        UNNotificationRequest::requestWithIdentifier_content_trigger(&identifier, &content, None);
+    let enqueue_id = identifier.to_string();
+
+    // Use a channel so we can report the enqueue result synchronously before
+    // the 2 s sleep that main.rs performs after this call.
+    let (tx, rx) = std::sync::mpsc::channel::<Result<(), String>>();
+    let enqueue_handler = RcBlock::new(move |error: *mut NSError| {
+        if let Some(e) = format_nserror(error) {
+            eprintln!("[MessengerX][NotifyHelper] enqueue failed: {e}");
+            let _ = tx.send(Err(e));
+        } else {
+            eprintln!("[MessengerX][NotifyHelper] enqueued: {enqueue_id}");
+            let _ = tx.send(Ok(()));
+        }
+    });
+    center.addNotificationRequest_withCompletionHandler(&request, Some(&enqueue_handler));
+
+    // Wait up to 3 s for the completion handler.  On the main thread this
+    // blocks, but in the CLI helper there is no run-loop / event queue to
+    // worry about; the ObjC completion handler fires on a background thread.
+    let result = match rx.recv_timeout(std::time::Duration::from_secs(3)) {
+        Ok(result) => result,
+        Err(_) => {
+            eprintln!("[MessengerX][NotifyHelper] timed out waiting for enqueue callback");
+            Ok(()) // assume it was enqueued; main.rs sleeps 2 s anyway
+        }
+    };
+
+    if result.is_ok() {
+        schedule_macos_helper_delivery_check(identifier.to_string());
+    }
+
+    result
+}
+
+/// Attempt to delegate notification dispatch to the debug `.app` bundle binary.
+///
+/// When `npm run tauri dev` runs the binary **directly** from
+/// `target/debug/messengerx` (outside a `.app`), `UNUserNotificationCenter`
+/// is unavailable.  However, the Tauri debug build also produces a full `.app`
+/// bundle at `target/debug/bundle/macos/Messenger X.app`.  If that bundle
+/// binary exists we can spawn it with `--notify` args so it runs inside a
+/// valid bundle context and can call UNUserNotificationCenter.
+///
+/// Returns `Ok(())` if the subprocess succeeds, `Err` otherwise (caller then
+/// falls through to osascript).
+///
+/// Guard against infinite recursion: if the current executable already lives
+/// inside a `.app` bundle this function returns `Err` immediately — the caller
+/// (`show_via_user_notifications`) never reaches this path because the bundle
+/// guard at the top of that function would have let it proceed directly.
+#[cfg(target_os = "macos")]
+fn try_delegate_to_app_bundle(title: &str, body: &str, silent: bool) -> Result<(), String> {
+    use std::path::PathBuf;
+    use std::process::Command;
+
+    // Refuse to recurse: if we are already inside a .app, do nothing here.
+    if is_running_in_macos_app_bundle() {
+        return Err("already inside .app bundle — not delegating".to_owned());
+    }
+
+    // current_exe is expected to be  .../target/debug/messengerx
+    // The .app binary lives at      .../target/debug/bundle/macos/Messenger X.app/Contents/MacOS/messengerx
+    let current_exe = std::env::current_exe().map_err(|e| format!("current_exe failed: {e}"))?;
+
+    let debug_dir = current_exe
+        .parent()
+        .ok_or_else(|| "current_exe has no parent directory".to_owned())?;
+
+    let bundle_bin: PathBuf = debug_dir
+        .join("bundle")
+        .join("macos")
+        .join("Messenger X.app")
+        .join("Contents")
+        .join("MacOS")
+        .join("messengerx");
+
+    if !bundle_bin.exists() {
+        return Err(format!(
+            "debug .app bundle binary not found at {}",
+            bundle_bin.display()
+        ));
+    }
+
+    // Double-check: don't exec ourselves if the paths canonicalize to the same
+    // file (should not happen given the guard above, but be explicit).
+    let canonical_bundle = bundle_bin
+        .canonicalize()
+        .unwrap_or_else(|_| bundle_bin.clone());
+    let canonical_self = current_exe
+        .canonicalize()
+        .unwrap_or_else(|_| current_exe.clone());
+    if canonical_bundle == canonical_self {
+        return Err("bundle binary is the same file as current exe — skipping".to_owned());
+    }
+
+    let info_plist = bundle_bin
+        .parent()
+        .and_then(|macos_dir| macos_dir.parent())
+        .map(|contents_dir| contents_dir.join("Info.plist"))
+        .ok_or_else(|| "could not derive Info.plist path for debug .app".to_owned())?;
+    let bundle_version = read_bundle_short_version(&info_plist)
+        .ok_or_else(|| format!("could not read version from {}", info_plist.display()))?;
+    let current_version = env!("CARGO_PKG_VERSION");
+    if bundle_version != current_version {
+        return Err(format!(
+            "debug .app bundle version mismatch: bundle={bundle_version:?} current={current_version:?}; \
+             run `npm run tauri build -- --debug` once to refresh the notification helper"
+        ));
+    }
+
+    let silent_arg = if silent { "silent" } else { "not-silent" };
+
+    log::info!(
+        "[MessengerX][Notification] Delegating notification to debug .app bundle: \
+         binary={} title={title:?} silent={silent}",
+        bundle_bin.display()
+    );
+
+    let output = Command::new(&bundle_bin)
+        .env("MESSENGERX_NOTIFY_HELPER", "1")
+        .arg("--notify")
+        .arg(title)
+        .arg(body)
+        .arg(silent_arg)
+        .output()
+        .map_err(|e| format!("failed to spawn bundle binary: {e}"))?;
+
+    let exit_code = output
+        .status
+        .code()
+        .map(|c| c.to_string())
+        .unwrap_or_else(|| "unknown".to_owned());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let stdout_t = stdout.trim();
+    let stderr_t = stderr.trim();
+    #[cfg(unix)]
+    let signal = {
+        use std::os::unix::process::ExitStatusExt;
+        output.status.signal()
+    };
+
+    if output.status.success() {
+        log::info!(
+            "[MessengerX][Notification] debug .app bundle notification succeeded: \
+             exit={exit_code} stdout={stdout_t:?} stderr={stderr_t:?}"
+        );
+        Ok(())
+    } else {
+        #[cfg(unix)]
+        let signal_msg = format!(" signal={signal:?}");
+        #[cfg(not(unix))]
+        let signal_msg = String::new();
+        Err(format!(
+            "debug .app bundle binary exited non-zero: exit={exit_code}{signal_msg} \
+             stdout={stdout_t:?} stderr={stderr_t:?}"
+        ))
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn read_bundle_short_version(info_plist: &std::path::Path) -> Option<String> {
+    let text = std::fs::read_to_string(info_plist).ok()?;
+    let key = "<key>CFBundleShortVersionString</key>";
+    let key_pos = text.find(key)?;
+    let after_key = &text[key_pos + key.len()..];
+    let start_tag = "<string>";
+    let start = after_key.find(start_tag)? + start_tag.len();
+    let end = after_key[start..].find("</string>")?;
+    Some(after_key[start..start + end].trim().to_owned())
+}
+
+/// macOS notification fallback via `/usr/bin/osascript`.
+///
+/// Called when the process is NOT running inside a `.app` bundle (i.e.
+/// `npm run tauri dev` / `cargo run`), or as a last-resort release fallback if
+/// `UNUserNotificationCenter` accepts a request but does not list it as
+/// delivered shortly afterwards.
+///
+/// The generated AppleScript is passed via `argv` (not shell interpolation), and
+/// notification text is escaped as AppleScript string literals.
+///
+/// # Errors
+/// Returns `Err` if `osascript` cannot be spawned or exits non-zero.
+#[cfg(target_os = "macos")]
+fn show_via_osascript_fallback(
+    title: &str,
+    body: &str,
+    silent: bool,
+    reason: &'static str,
+) -> Result<(), String> {
+    use std::process::Command;
+
+    let current_exe = std::env::current_exe()
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or_else(|_| "<unknown>".to_owned());
+    let pid = std::process::id();
+    let term_program = std::env::var("TERM_PROGRAM").unwrap_or_default();
+    let term = std::env::var("TERM").unwrap_or_default();
+
+    let script = build_osascript_notification_script(title, body, silent);
+
+    log::info!(
+        "[MessengerX][Notification][OSASCRIPT FALLBACK] Dispatching macOS notification via \
+         osascript: reason={reason} title={title:?} silent={silent} \
+         script_len={} exe={current_exe:?} pid={pid} \
+         TERM_PROGRAM={term_program:?} TERM={term:?}",
+        script.len(),
+    );
+
+    let output = Command::new("/usr/bin/osascript")
+        .arg("-e")
+        .arg(&script)
+        .output()
+        .map_err(|e| format!("failed to spawn osascript: {e}"))?;
+
+    let exit_code = output
+        .status
+        .code()
+        .map(|c| c.to_string())
+        .unwrap_or_else(|| "unknown".to_owned());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let stdout_trimmed = stdout.trim();
+    let stderr_trimmed = stderr.trim();
+
+    if output.status.success() {
+        log::info!(
+            "[MessengerX][Notification][OSASCRIPT FALLBACK] osascript succeeded: \
+             exit_code={exit_code} stdout={stdout_trimmed:?} stderr={stderr_trimmed:?}"
+        );
+        Ok(())
+    } else {
+        Err(format!(
+            "osascript exited with non-zero status: exit_code={exit_code} \
+             stdout={stdout_trimmed:?} stderr={stderr_trimmed:?}"
+        ))
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn build_osascript_notification_script(title: &str, body: &str, _silent: bool) -> String {
+    // Sound is intentionally omitted from both silent and non-silent dev-mode
+    // fallback scripts.  `sound name "Funk"` is unreliable outside a proper
+    // `.app` bundle context and causes osascript to fail on some macOS
+    // configurations.  The System sound is still played by
+    // UNUserNotificationCenter in release builds.
+    let body = apple_script_string_literal(body);
+    let title = apple_script_string_literal(title);
+    format!("display notification {body} with title {title}")
+}
+
+#[cfg(target_os = "macos")]
+fn apple_script_string_literal(value: &str) -> String {
+    let mut out = String::with_capacity(value.len() + 2);
+    out.push('"');
+    for ch in value.chars() {
+        match ch {
+            '\\' => out.push_str("\\\\"),
+            '"' => out.push_str("\\\""),
+            '\n' | '\r' | '\t' => out.push(' '),
+            c if c.is_control() => out.push(' '),
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
+}
+
+#[cfg(target_os = "macos")]
+fn log_macos_notification_settings(center: &UNUserNotificationCenter, context: &'static str) {
+    let handler = RcBlock::new(move |settings: NonNull<UNNotificationSettings>| {
+        let settings = unsafe { settings.as_ref() };
+        let authorization_status = settings.authorizationStatus();
+        let alert_setting = settings.alertSetting();
+        let notification_center_setting = settings.notificationCenterSetting();
+        let sound_setting = settings.soundSetting();
+        let badge_setting = settings.badgeSetting();
+        let alert_style = settings.alertStyle();
+        log::info!(
+            "[MessengerX][Notification][DIAG] macOS settings ({context}): \
+             authorizationStatus={} alertSetting={} notificationCenterSetting={} \
+             soundSetting={} badgeSetting={} alertStyle={}",
+            authorization_status.0,
+            alert_setting.0,
+            notification_center_setting.0,
+            sound_setting.0,
+            badge_setting.0,
+            alert_style.0,
+        );
+        if authorization_status == UNAuthorizationStatus::Denied
+            || authorization_status == UNAuthorizationStatus::NotDetermined
+            || alert_setting == UNNotificationSetting::Disabled
+        {
+            log::warn!(
+                "[MessengerX][Notification][DIAG] macOS system settings may block banners; \
+                 enable notifications for Messenger X in System Settings → Notifications"
+            );
+        }
+    });
+    center.getNotificationSettingsWithCompletionHandler(&handler);
+}
+
+#[cfg(target_os = "macos")]
+fn log_macos_delivered_count(center: &UNUserNotificationCenter, context: &'static str) {
+    let handler = RcBlock::new(move |notifications: NonNull<NSArray<UNNotification>>| {
+        let notifications = unsafe { notifications.as_ref() };
+        let count = notifications.len();
+        log::info!(
+            "[MessengerX][Notification][DIAG] macOS delivered notifications ({context}): count={count}"
+        );
+        eprintln!("[MessengerX][NotifyHelper][DIAG] delivered ({context}): count={count}");
+        for (i, notification) in notifications.to_vec().iter().enumerate().take(5) {
+            let id = notification.request().identifier().to_string();
+            let title = notification.request().content().title().to_string();
+            log::info!(
+                "[MessengerX][Notification][DIAG]   delivered[{i}] id={id:?} title={title:?}"
+            );
+            eprintln!(
+                "[MessengerX][NotifyHelper][DIAG]   delivered[{i}] id={id:?} title={title:?}"
+            );
+        }
+    });
+    center.getDeliveredNotificationsWithCompletionHandler(&handler);
+}
+
+#[cfg(target_os = "macos")]
+fn log_macos_pending_count(center: &UNUserNotificationCenter, context: &'static str) {
+    let handler = RcBlock::new(move |requests: NonNull<NSArray<UNNotificationRequest>>| {
+        let requests = unsafe { requests.as_ref() };
+        let count = requests.len();
+        log::info!(
+                "[MessengerX][Notification][DIAG] macOS pending notification requests ({context}): count={count}"
+            );
+        eprintln!("[MessengerX][NotifyHelper][DIAG] pending ({context}): count={count}");
+        for (i, request) in requests.to_vec().iter().enumerate().take(5) {
+            let id = request.identifier().to_string();
+            let title = request.content().title().to_string();
+            log::info!("[MessengerX][Notification][DIAG]   pending[{i}] id={id:?} title={title:?}");
+            eprintln!("[MessengerX][NotifyHelper][DIAG]   pending[{i}] id={id:?} title={title:?}");
+        }
+    });
+    center.getPendingNotificationRequestsWithCompletionHandler(&handler);
+}
+
+/// Spawn a background thread that checks, after ~2 seconds, whether the
+/// notification with `identifier` appears in the delivered list.
+///
+/// Designed for the CLI `--notify` helper context where the parent process
+/// captures stderr; uses both `eprintln!` and `log::info!` so both channels
+/// receive the result.
+#[cfg(target_os = "macos")]
+fn schedule_macos_helper_delivery_check(identifier: String) {
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_secs(2));
+        let center = UNUserNotificationCenter::currentNotificationCenter();
+        let expected = identifier.clone();
+        let handler = RcBlock::new(move |notifications: NonNull<NSArray<UNNotification>>| {
+            let notifications = unsafe { notifications.as_ref() };
+            let count = notifications.len();
+            let found = notifications
+                .to_vec()
+                .iter()
+                .any(|n| n.request().identifier().to_string() == expected);
+            if found {
+                log::info!(
+                    "[MessengerX][NotifyHelper][DIAG] delivery-check: identifier={expected:?} FOUND in delivered (count={count})"
+                );
+                eprintln!(
+                    "[MessengerX][NotifyHelper][DIAG] delivery-check: identifier={expected:?} FOUND in delivered (count={count})"
+                );
+            } else {
+                log::warn!(
+                    "[MessengerX][NotifyHelper][DIAG] delivery-check: identifier={expected:?} NOT FOUND in delivered after 2s (count={count})"
+                );
+                eprintln!(
+                    "[MessengerX][NotifyHelper][DIAG] delivery-check: identifier={expected:?} NOT FOUND in delivered after 2s (count={count})"
+                );
+            }
+        });
+        center.getDeliveredNotificationsWithCompletionHandler(&handler);
+    });
+}
+
+#[cfg(target_os = "macos")]
+fn schedule_macos_delivery_check(identifier: String, title: String, body: String, silent: bool) {
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_secs(2));
+        let center = UNUserNotificationCenter::currentNotificationCenter();
+        let expected_identifier = identifier.clone();
+        let fallback_title = title.clone();
+        let fallback_body = body.clone();
+        let handler = RcBlock::new(move |notifications: NonNull<NSArray<UNNotification>>| {
+            let notifications = unsafe { notifications.as_ref() };
+            let delivered_count = notifications.len();
+            let mut found = false;
+            for notification in notifications.to_vec() {
+                let delivered_identifier = notification.request().identifier().to_string();
+                if delivered_identifier == expected_identifier {
+                    found = true;
+                    break;
+                }
+            }
+            if found {
+                log::info!(
+                    "[MessengerX][Notification][DIAG] macOS delivered notification present: \
+                     id={expected_identifier} delivered_count={delivered_count}"
+                );
+            } else {
+                log::warn!(
+                    "[MessengerX][Notification][DIAG] macOS notification was accepted by \
+                     UNUserNotificationCenter but is not present in delivered notifications \
+                     after 2s: id={expected_identifier} delivered_count={delivered_count}; \
+                     falling back to osascript"
+                );
+                if let Err(e) = show_via_osascript_fallback(
+                    &fallback_title,
+                    &fallback_body,
+                    silent,
+                    "unusernotificationcenter-not-delivered",
+                ) {
+                    log::warn!(
+                        "[MessengerX][Notification][DIAG] osascript delivery fallback failed: {e}"
+                    );
+                }
+            }
+        });
+        center.getDeliveredNotificationsWithCompletionHandler(&handler);
+    });
+}
+
 #[cfg(target_os = "macos")]
 fn initialize_macos_notification_center() -> Result<(), String> {
     // `UNUserNotificationCenter::currentNotificationCenter()` requires a valid
     // macOS `.app` bundle context.  When the binary runs directly from
     // `target/debug/` (i.e. `tauri dev` / `cargo run`) it crashes with
     // NSInternalInconsistencyException because `bundleProxyForCurrentProcess`
-    // is nil.  Detect this early and skip init gracefully.
-    let in_bundle = std::env::current_exe()
-        .map(|p| p.to_string_lossy().contains(".app/Contents/MacOS"))
-        .unwrap_or(false);
-    if !in_bundle {
+    // is nil.  Dev-mode notifications are handled via osascript instead.
+    if !is_running_in_macos_app_bundle() {
         log::info!(
             "[MessengerX][Notification] Skipping UNUserNotificationCenter init: \
-             not running inside .app bundle (dev mode)"
+             not running inside .app bundle (dev mode — osascript fallback will be used)"
         );
         return Ok(());
     }
@@ -201,6 +700,7 @@ fn initialize_macos_notification_center() -> Result<(), String> {
             | UNAuthorizationOptions::Badge,
         &permission_handler,
     );
+    log_macos_notification_settings(&center, "after-authorization-request");
 
     Ok(())
 }
@@ -212,17 +712,24 @@ fn show_via_user_notifications(
     tag: &str,
     silent: bool,
 ) -> Result<(), String> {
-    // Same bundle check as initialize(): UNUserNotificationCenter crashes
-    // outside of a proper .app bundle (dev mode).
-    let in_bundle = std::env::current_exe()
-        .map(|p| p.to_string_lossy().contains(".app/Contents/MacOS"))
-        .unwrap_or(false);
-    if !in_bundle {
-        log::info!(
-            "[MessengerX][Notification] Skipping macOS notification (no .app bundle — dev mode): \
-             title={title:?}"
-        );
-        return Ok(());
+    // UNUserNotificationCenter crashes outside a proper .app bundle (dev mode).
+    // Strategy (dev mode, outside .app):
+    //   1. Try to delegate to the debug .app bundle binary via --notify subprocess.
+    //      The subprocess runs inside the bundle context and can call
+    //      UNUserNotificationCenter directly; it does NOT recurse back here.
+    //   2. If the bundle binary is missing or fails, fall back to osascript.
+    // Release .app builds continue through to UNUserNotificationCenter below.
+    if !is_running_in_macos_app_bundle() {
+        match try_delegate_to_app_bundle(title, body, silent) {
+            Ok(()) => return Ok(()),
+            Err(e) => {
+                log::info!(
+                    "[MessengerX][Notification] bundle delegation unavailable ({e}); \
+                     falling back to osascript"
+                );
+            }
+        }
+        return show_via_osascript_fallback(title, body, silent, "dev-mode-outside-app-bundle");
     }
 
     log::info!(
@@ -233,13 +740,11 @@ fn show_via_user_notifications(
     initialize()?;
 
     let center = UNUserNotificationCenter::currentNotificationCenter();
+    log_macos_notification_settings(&center, "before-enqueue");
+
     let content = UNMutableNotificationContent::new();
     content.setTitle(&NSString::from_str(title));
     content.setBody(&NSString::from_str(body));
-
-    if !tag.is_empty() {
-        content.setThreadIdentifier(&NSString::from_str(tag));
-    }
 
     if !silent {
         let sound = UNNotificationSound::defaultSound();
@@ -250,6 +755,9 @@ fn show_via_user_notifications(
     let request =
         UNNotificationRequest::requestWithIdentifier_content_trigger(&identifier, &content, None);
     let enqueue_identifier = identifier.to_string();
+    let delivery_check_identifier = enqueue_identifier.clone();
+    let delivery_check_title = title.to_owned();
+    let delivery_check_body = body.to_owned();
     let enqueue_handler = RcBlock::new(move |error: *mut NSError| {
         if let Some(error) = format_nserror(error) {
             log::warn!(
@@ -258,6 +766,12 @@ fn show_via_user_notifications(
         } else {
             log::info!(
                 "[MessengerX][Notification] macOS notification enqueued: {enqueue_identifier}"
+            );
+            schedule_macos_delivery_check(
+                delivery_check_identifier.clone(),
+                delivery_check_title.clone(),
+                delivery_check_body.clone(),
+                silent,
             );
         }
     });
@@ -315,9 +829,7 @@ fn show_via_tauri_plugin(
         }
         Err(e) => {
             let msg = e.to_string();
-            log::warn!(
-                "[MessengerX][Notification] tauri-plugin-notification failed: {msg}"
-            );
+            log::warn!("[MessengerX][Notification] tauri-plugin-notification failed: {msg}");
             Err(msg)
         }
     }
@@ -357,20 +869,30 @@ fn show_via_notify_send(title: &str, body: &str, silent: bool) -> Result<(), Str
 
     cmd.arg(title).arg(body);
 
-    let status = cmd.status().map_err(|e| format!("failed to spawn notify-send: {e}"))?;
+    let output = cmd
+        .output()
+        .map_err(|e| format!("failed to spawn notify-send: {e}"))?;
 
-    if status.success() {
+    let exit_code = output
+        .status
+        .code()
+        .map(|c| c.to_string())
+        .unwrap_or_else(|| "unknown".to_owned());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let stdout_t = stdout.trim();
+    let stderr_t = stderr.trim();
+
+    if output.status.success() {
         log::info!(
-            "[MessengerX][Notification] notify-send exited successfully"
+            "[MessengerX][Notification] notify-send exited successfully: \
+             exit_code={exit_code} stdout={stdout_t:?} stderr={stderr_t:?}"
         );
         Ok(())
     } else {
         Err(format!(
-            "notify-send exited with non-zero status: {}",
-            status
-                .code()
-                .map(|c| c.to_string())
-                .unwrap_or_else(|| "unknown".to_owned())
+            "notify-send exited with non-zero status: exit_code={exit_code} \
+             stdout={stdout_t:?} stderr={stderr_t:?}"
         ))
     }
 }
@@ -394,17 +916,17 @@ fn default_sound() -> &'static str {
 
 #[cfg(target_os = "macos")]
 fn build_macos_notification_identifier(tag: &str) -> String {
+    // Always use a unique nanosecond timestamp so every notification arrives as
+    // a fresh banner rather than silently replacing one already in Notification
+    // Center.  A stable identifier caused macOS to re-use the existing
+    // delivered record, suppressing the sound/banner after the first delivery.
+    let ts = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
     if !tag.is_empty() {
-        // Stable identifier: macOS UNUserNotificationCenter replaces an existing
-        // notification with the same identifier instead of stacking a new one.
-        // Using a timestamp here would cause every notification to stack up in
-        // Notification Center indefinitely.
-        format!("messengerx-{tag}")
+        format!("messengerx-{tag}-{ts}")
     } else {
-        let ts = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_nanos();
         format!("messengerx-message-{ts}")
     }
 }
@@ -437,15 +959,109 @@ mod tests {
     #[cfg(target_os = "macos")]
     #[test]
     fn test_macos_notification_identifier_uses_expected_prefix() {
-        let tagged = build_macos_notification_identifier("thread-123");
+        let tagged1 = build_macos_notification_identifier("thread-123");
+        let tagged2 = build_macos_notification_identifier("thread-123");
         let untagged = build_macos_notification_identifier("");
 
-        // Tagged notifications use a stable ID (no timestamp) so macOS
-        // replaces the previous notification instead of stacking.
-        assert_eq!(tagged, "messengerx-thread-123");
+        // Tagged notifications always start with the tag-scoped prefix.
+        assert!(
+            tagged1.starts_with("messengerx-thread-123-"),
+            "expected 'messengerx-thread-123-' prefix, got: {tagged1}"
+        );
+        // Each call produces a unique identifier (fresh banner, not a replacement).
+        assert_ne!(
+            tagged1, tagged2,
+            "tagged identifiers should be unique across calls"
+        );
         // Untagged notifications still get a unique timestamp suffix.
         assert!(untagged.starts_with("messengerx-message-"));
-        assert_ne!(tagged, untagged);
+        assert_ne!(tagged1, untagged);
+    }
+
+    /// Verify that `is_running_in_macos_app_bundle` returns a bool without
+    /// panicking (value depends on test runner environment, not asserted).
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn test_bundle_guard_does_not_panic() {
+        let _ = is_running_in_macos_app_bundle();
+    }
+
+    /// Verify that the osascript `Command` for the dev fallback is assembled
+    /// correctly — does NOT spawn the binary, only inspects debug output.
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn test_osascript_dev_fallback_args_assembled_without_panic() {
+        use std::process::Command;
+
+        let title = "Test \"title\"";
+        let body = "Test body\\line\nnext";
+
+        // Non-silent variant: sound is omitted from the dev fallback for reliability.
+        let script_sound = build_osascript_notification_script(title, body, false);
+        let mut cmd_sound = Command::new("/usr/bin/osascript");
+        cmd_sound.arg("-e").arg(&script_sound);
+        let debug_sound = format!("{cmd_sound:?}");
+        assert!(
+            debug_sound.contains("osascript"),
+            "command should reference osascript"
+        );
+        assert!(
+            debug_sound.contains("display notification"),
+            "should contain AppleScript verb"
+        );
+        assert!(
+            !debug_sound.contains("sound name"),
+            "dev fallback should omit sound name for reliability"
+        );
+        assert!(
+            script_sound.contains("\\\"title\\\""),
+            "quotes should be escaped"
+        );
+        assert!(
+            script_sound.contains("body\\\\line next"),
+            "backslash/newline should be escaped/sanitized"
+        );
+
+        // Silent variant must also NOT include `sound name`.
+        let script_silent = build_osascript_notification_script(title, body, true);
+        let mut cmd_silent = Command::new("/usr/bin/osascript");
+        cmd_silent.arg("-e").arg(&script_silent);
+        let debug_silent = format!("{cmd_silent:?}");
+        assert!(
+            !debug_silent.contains("sound name"),
+            "silent should omit sound name"
+        );
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn test_read_bundle_short_version_from_xml_plist() {
+        let unique = format!(
+            "messengerx-test-{}-{}.plist",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos()
+        );
+        let path = std::env::temp_dir().join(unique);
+        std::fs::write(
+            &path,
+            r#"<?xml version="1.0" encoding="UTF-8"?>
+<plist version="1.0">
+<dict>
+  <key>CFBundleName</key>
+  <string>Messenger X</string>
+  <key>CFBundleShortVersionString</key>
+  <string>1.3.17</string>
+</dict>
+</plist>"#,
+        )
+        .expect("write temp plist");
+
+        let version = read_bundle_short_version(&path).expect("read version");
+        let _ = std::fs::remove_file(&path);
+        assert_eq!(version, "1.3.17");
     }
 
     /// Verify that the notify-send command is constructed without panicking
