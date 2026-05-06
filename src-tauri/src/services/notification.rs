@@ -815,8 +815,14 @@ fn show_via_tauri_plugin(
 
     // Play notification sound unless explicitly silenced.
     if !silent {
-        builder = builder.sound(default_sound());
+        let sound = default_sound();
+        log::info!(
+            "[MessengerX][Notification][Sound] tauri-plugin-notification sound={sound:?} \
+             (Phase A diag — Win11 H4: plugin .sound() may not produce <audio> in toast XML)"
+        );
+        builder = builder.sound(sound);
     } else {
+        log::info!("[MessengerX][Notification][Sound] silent=true — no sound requested");
         builder = builder.silent();
     }
 
