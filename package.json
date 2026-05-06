@@ -7,7 +7,8 @@
   "scripts": {
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build"
+    "tauri:build": "tauri build",
+    "build:debug": "tauri build -- --debug && open src-tauri/target/debug/bundle/macos"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

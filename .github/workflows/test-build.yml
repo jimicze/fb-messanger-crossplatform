@@ -1,64 +1,20 @@
 name: Test Build
 
-# Builds the app from any branch and uploads artifacts to a public pre-release.
-# Assets are publicly downloadable without GitHub login.
-# Does NOT bump the version, commit to main, or appear in the regular release feed.
+# Builds the app from any branch and uploads artifacts for manual testing.
+# Does NOT bump the version, commit, push tags, or create a GitHub Release.
+# Intended for validating PR branches before merging.
 #
 # Trigger: Actions → Test Build → Run workflow → pick branch
+# Artifacts: Actions → run → Artifacts section (requires GitHub login to download)
 
 on:
   workflow_dispatch:
 
 jobs:
-
-  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  # Phase 1: Create a public pre-release so build jobs can upload to it.
-  # Pre-release assets are publicly downloadable without GitHub login.
-  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  create-release:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    outputs:
-      tag-name: ${{ steps.tag.outputs.name }}
-
-    steps:
-      - name: Generate unique tag name
-        id: tag
-        run: |
-          DATE=$(date -u +"%Y%m%d")
-          TAG="test-build-${DATE}-${{ github.run_number }}"
-          echo "name=${TAG}" >> "$GITHUB_OUTPUT"
-
-      - name: Create public pre-release
-        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ steps.tag.outputs.name }}
-          name: 'Test Build #${{ github.run_number }} (${{ github.ref_name }})'
-          prerelease: true
-          draft: false
-          body: |
-            **Automated test build — not for production use.**
-
-            | | |
-            |---|---|
-            | Branch | `${{ github.ref_name }}` |
-            | Commit | `${{ github.sha }}` |
-            | Run | [${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) |
-
-            Assets below are **publicly downloadable** without GitHub login.
-            This pre-release will be deleted once the branch is merged or closed.
-
-  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  # Phase 2: Build on all platforms and upload to the pre-release.
-  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   build:
-    needs: create-release
     name: Build (${{ matrix.label }})
     permissions:
-      contents: write
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -156,36 +112,33 @@ jobs:
       # ── Upload Linux artifacts (.deb + .AppImage) ─────────────────────────
       - name: Upload Linux artifacts
         if: contains(matrix.platform, 'ubuntu')
-        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          tag_name: ${{ needs.create-release.outputs.tag-name }}
-          fail_on_unmatched_files: true
-          files: |
+          name: ${{ matrix.label }}-debug
+          retention-days: 7
+          if-no-files-found: error
+          path: |
             src-tauri/target/**/debug/bundle/deb/*.deb
             src-tauri/target/**/debug/bundle/appimage/*.AppImage
 
       # ── Upload macOS artifacts (.dmg) ─────────────────────────────────────
       - name: Upload macOS artifacts
         if: runner.os == 'macOS'
-        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          tag_name: ${{ needs.create-release.outputs.tag-name }}
-          fail_on_unmatched_files: true
-          files: |
+          name: ${{ matrix.label }}-debug
+          retention-days: 7
+          if-no-files-found: error
+          path: |
             src-tauri/target/**/debug/bundle/dmg/*.dmg
 
       # ── Upload Windows artifacts (.exe NSIS installer) ────────────────────
       - name: Upload Windows artifacts
         if: runner.os == 'Windows'
-        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          tag_name: ${{ needs.create-release.outputs.tag-name }}
-          fail_on_unmatched_files: true
-          files: |
+          name: ${{ matrix.label }}-debug
+          retention-days: 7
+          if-no-files-found: error
+          path: |
             src-tauri/target/**/debug/bundle/nsis/*.exe
