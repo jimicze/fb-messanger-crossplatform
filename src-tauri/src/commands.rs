@@ -116,6 +116,13 @@ pub(crate) enum NotifState {
         prev_fired_at_secs: u64,
         /// When count first dropped to zero.
         zero_since_secs: u64,
+        /// Whether this zero was triggered by a typing-indicator title
+        /// (title lacks a `(N)` prefix and the `| Messenger` suffix).
+        ///
+        /// When `true`, a count return within `TYPING_REARM_SECS` may
+        /// re-fire so the user is notified of the message that followed
+        /// the typing indicator.
+        zero_from_typing: bool,
     },
 }
 
@@ -135,6 +142,20 @@ const ZERO_SUSTAIN_SECS: u64 = 7;
 /// are never delayed.  `ZeroPending` sig-changed also respects this floor
 /// because the previous fire timestamp is carried over into that state.
 const MIN_SIG_CHANGE_NOTIFY_SECS: u64 = 3;
+
+/// Minimum seconds after the previous notification before a typing-indicator
+/// zero-bounce may re-arm and fire a new banner.
+///
+/// Messenger momentarily sets the title to a locale-specific typing string
+/// (e.g. "Alice is typing…", "Jouda píše!") — count=0 — then restores the
+/// `(N) SENDER | Messenger` title when the message arrives.  Without re-arming
+/// the user would miss the new-message notification for the same count because
+/// `zero-bounce-oscillation-suppressed` blocks it.
+///
+/// The floor prevents rapid oscillation spam: if the typing indicator fires and
+/// count bounces back before `TYPING_REARM_SECS` have elapsed since the last
+/// notification, no new banner is shown.
+const TYPING_REARM_SECS: u64 = 5;
 
 /// Returns the current Unix time in seconds (best-effort; 0 on error).
 fn now_secs() -> u64 {
@@ -185,6 +206,7 @@ fn decide_notification(
     activity_sig: &str,
     is_focused: bool,
     notifications_enabled: bool,
+    is_typing_indicator: bool,
     now: u64,
 ) -> NotificationDecision {
     match state.clone() {
@@ -228,6 +250,7 @@ fn decide_notification(
                     prev_sig,
                     prev_fired_at_secs: fired_at_secs,
                     zero_since_secs: now,
+                    zero_from_typing: is_typing_indicator,
                 };
                 NotificationDecision {
                     should_fire: false,
@@ -282,6 +305,7 @@ fn decide_notification(
             prev_sig,
             prev_fired_at_secs,
             zero_since_secs,
+            zero_from_typing,
         } => {
             if count == 0 {
                 let zero_elapsed = now.saturating_sub(zero_since_secs);
@@ -314,15 +338,21 @@ fn decide_notification(
                 // Same floor as the Notified arm: sig-only fires are rate-limited.
                 let sig_under_floor =
                     sig_changed && !count_increased && elapsed < MIN_SIG_CHANGE_NOTIFY_SECS;
+                // Re-arm: the previous zero came from a typing indicator and enough
+                // time has elapsed since the last notification, so the returning
+                // count represents a message that was sent after typing — fire.
+                let typing_rearm = zero_from_typing && elapsed >= TYPING_REARM_SECS;
                 let should_fire = notifications_enabled
                     && !is_focused
-                    && (count_increased || (sig_changed && !sig_under_floor));
+                    && (count_increased || (sig_changed && !sig_under_floor) || typing_rearm);
                 let reason = if count_increased {
                     "zero-bounce-count-increased"
                 } else if sig_changed && sig_under_floor {
                     "zero-bounce-sig-floor-suppressed"
                 } else if sig_changed {
                     "zero-bounce-sig-changed"
+                } else if typing_rearm {
+                    "typing-indicator-rearm"
                 } else {
                     "zero-bounce-oscillation-suppressed"
                 };
@@ -417,11 +447,47 @@ pub fn send_notification(
 /// `count=0` first enters `ZeroPending` and clears badge/tray only after the zero
 /// state is sustained.  This avoids re-firing every few seconds on title
 /// oscillation while still clearing the badge after an actual read-all.
+///
+/// Called from JS via IPC — `is_typing_indicator` is always `false` here because
+/// JS has no reliable way to detect the typing indicator title format.  Use
+/// [`update_unread_count_from_title`] for the Rust-side title-change handler
+/// which has full title context.
 #[tauri::command]
 pub fn update_unread_count(
     count: u32,
     sender: String,
     activity_sig: String,
+    app: AppHandle,
+) -> Result<(), String> {
+    update_unread_count_core(count, sender, activity_sig, false, app)
+}
+
+/// Variant of [`update_unread_count`] called directly from the Rust-side
+/// `on_document_title_changed` handler.
+///
+/// Unlike the IPC command, this call-site knows:
+/// - `sender` — parsed from `(N) SENDER | Messenger` title format.
+/// - `is_typing_indicator` — whether the title was a locale-specific typing
+///   indicator (e.g. "Alice is typing…", "Jouda píše!") rather than a
+///   real unread-count title.
+///
+/// `activity_sig` is always empty here because there is no DOM access from Rust.
+pub(crate) fn update_unread_count_from_title(
+    count: u32,
+    sender: String,
+    is_typing_indicator: bool,
+    app: AppHandle,
+) -> Result<(), String> {
+    update_unread_count_core(count, sender, String::new(), is_typing_indicator, app)
+}
+
+/// Shared implementation for [`update_unread_count`] and
+/// [`update_unread_count_from_title`].
+fn update_unread_count_core(
+    count: u32,
+    sender: String,
+    activity_sig: String,
+    is_typing_indicator: bool,
     app: AppHandle,
 ) -> Result<(), String> {
     // ------------------------------------------------------------------
@@ -463,13 +529,16 @@ pub fn update_unread_count(
             &activity_sig,
             is_focused,
             settings.notifications_enabled,
+            is_typing_indicator,
             now,
         );
         (decision, state.clone())
     };
 
     log::info!(
-        "[MessengerX][Notification][DECISION] count={} old_count={} focused={} enabled={} reason={} fire={} clear_badge={} prev_count={} count_increased={} sig_changed={} elapsed={:?} activity_sig={:?} state_after={:?}",
+        "[MessengerX][Notification][DECISION] count={} old_count={} focused={} enabled={} \
+         reason={} fire={} clear_badge={} prev_count={} count_increased={} sig_changed={} \
+         elapsed={:?} typing={} activity_sig={:?} state_after={:?}",
         count,
         old_count,
         is_focused,
@@ -481,6 +550,7 @@ pub fn update_unread_count(
         decision.count_increased,
         decision.sig_changed,
         decision.elapsed_since_fire,
+        is_typing_indicator,
         activity_sig,
         state_after,
     );
@@ -518,12 +588,14 @@ pub fn update_unread_count(
         };
         log::info!(
             "[MessengerX][Notification] firing notification: count {} → {}; \
-             reason={} count_increased={} sig_changed={}; sender={:?} activity_sig={:?} silent={}",
+             reason={} count_increased={} sig_changed={} typing={}; \
+             sender={:?} activity_sig={:?} silent={}",
             decision.previous_count,
             count,
             decision.reason,
             decision.count_increased,
             decision.sig_changed,
+            is_typing_indicator,
             sender,
             activity_sig,
             effective_silent,
@@ -565,6 +637,26 @@ pub fn update_unread_count(
             };
             if let Err(e) = webview.set_badge_label(label) {
                 log::warn!("[MessengerX][Badge] Failed to set dock badge: {e}");
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // 3b. Taskbar / dock attention request (Win11 + Linux only).
+    //     On macOS the Dock badge (section 3) already draws sufficient
+    //     attention; on Win11/Linux we flash the taskbar button /
+    //     set the window urgency hint so the user notices the new message
+    //     even when the app is in the background or minimised.
+    //     The platform clears the attention signal automatically once the
+    //     window is focused — no explicit teardown required.
+    // ------------------------------------------------------------------
+    #[cfg(not(target_os = "macos"))]
+    if decision.should_fire {
+        if let Some(ref w) = main_window {
+            if let Err(e) =
+                w.request_user_attention(Some(tauri::UserAttentionType::Informational))
+            {
+                log::warn!("[MessengerX][Attention] request_user_attention failed: {e}");
             }
         }
     }
@@ -870,7 +962,7 @@ mod tests {
     #[test]
     fn test_notif_state_idle_positive_fires() {
         let mut state = NotifState::Idle;
-        let decision = decide_notification(&mut state, 1, "", false, true, 100);
+        let decision = decide_notification(&mut state, 1, "", false, true, false, 100);
         assert!(decision.should_fire);
         assert_eq!(decision.reason, "idle-count-positive");
         assert_eq!(
@@ -891,12 +983,12 @@ mod tests {
             fired_at_secs: 100,
         };
 
-        let zero = decide_notification(&mut state, 0, "", false, true, 103);
+        let zero = decide_notification(&mut state, 0, "", false, true, false, 103);
         assert!(!zero.should_fire);
         assert!(!zero.clear_badge);
         assert_eq!(zero.reason, "zero-pending-start");
 
-        let bounce = decide_notification(&mut state, 1, "", false, true, 106);
+        let bounce = decide_notification(&mut state, 1, "", false, true, false, 106);
         assert!(!bounce.should_fire);
         assert_eq!(bounce.reason, "zero-bounce-oscillation-suppressed");
         assert_eq!(
@@ -917,8 +1009,8 @@ mod tests {
             fired_at_secs: 100,
         };
 
-        let _ = decide_notification(&mut state, 0, "", false, true, 103);
-        let sustained = decide_notification(&mut state, 0, "", false, true, 111);
+        let _ = decide_notification(&mut state, 0, "", false, true, false, 103);
+        let sustained = decide_notification(&mut state, 0, "", false, true, false, 111);
         assert!(!sustained.should_fire);
         assert!(sustained.clear_badge);
         assert_eq!(sustained.reason, "zero-sustained-read-all");
@@ -933,9 +1025,9 @@ mod tests {
             fired_at_secs: 100,
         };
 
-        let _ = decide_notification(&mut state, 0, "", false, true, 103);
-        let _ = decide_notification(&mut state, 0, "", false, true, 111);
-        let next = decide_notification(&mut state, 1, "", false, true, 112);
+        let _ = decide_notification(&mut state, 0, "", false, true, false, 103);
+        let _ = decide_notification(&mut state, 0, "", false, true, false, 111);
+        let next = decide_notification(&mut state, 1, "", false, true, false, 112);
         assert!(next.should_fire);
         assert_eq!(next.reason, "idle-count-positive");
     }
@@ -947,9 +1039,10 @@ mod tests {
             prev_sig: "1:0:Alice".to_string(),
             prev_fired_at_secs: 100,
             zero_since_secs: 103,
+            zero_from_typing: false,
         };
 
-        let decision = decide_notification(&mut state, 1, "1:1:Alice", false, true, 104);
+        let decision = decide_notification(&mut state, 1, "1:1:Alice", false, true, false, 104);
         assert!(decision.should_fire);
         assert!(decision.sig_changed);
         assert_eq!(decision.reason, "zero-bounce-sig-changed");
@@ -981,7 +1074,7 @@ mod tests {
         };
         // elapsed = 100+MIN_SIG_CHANGE_NOTIFY_SECS — exactly at the boundary → allow
         let now = 100 + MIN_SIG_CHANGE_NOTIFY_SECS;
-        let decision = decide_notification(&mut state, 1, "1:1:Alice", false, true, now);
+        let decision = decide_notification(&mut state, 1, "1:1:Alice", false, true, false, now);
         assert!(decision.should_fire, "sig_changed after floor should fire");
         assert_eq!(decision.reason, "sig-changed");
     }
@@ -996,7 +1089,7 @@ mod tests {
         };
         // elapsed = MIN_SIG_CHANGE_NOTIFY_SECS - 1 → below floor → suppress
         let now = 100 + MIN_SIG_CHANGE_NOTIFY_SECS - 1;
-        let decision = decide_notification(&mut state, 1, "1:1:Alice", false, true, now);
+        let decision = decide_notification(&mut state, 1, "1:1:Alice", false, true, false, now);
         assert!(
             !decision.should_fire,
             "sig_changed under floor must be suppressed"
@@ -1013,7 +1106,7 @@ mod tests {
             fired_at_secs: 100,
         };
         // elapsed = 0 — well under the floor, but count increased → must fire
-        let decision = decide_notification(&mut state, 2, "2:0:Alice", false, true, 100);
+        let decision = decide_notification(&mut state, 2, "2:0:Alice", false, true, false, 100);
         assert!(
             decision.should_fire,
             "count_increased must bypass sig floor"
@@ -1042,7 +1135,7 @@ mod tests {
     fn test_count_increase_fires_with_empty_sig() {
         let mut state = NotifState::Idle;
         // count > 0, empty sig — should still fire on count-increase from Idle.
-        let decision = decide_notification(&mut state, 3, "", false, true, 200);
+        let decision = decide_notification(&mut state, 3, "", false, true, false, 200);
         assert!(
             decision.should_fire,
             "count-increase from Idle must fire even with empty activity_sig"
@@ -1060,7 +1153,7 @@ mod tests {
             fired_at_secs: 100,
         };
         // Same count, empty sig — must not fire.
-        let decision = decide_notification(&mut state, 1, "", false, true, 200);
+        let decision = decide_notification(&mut state, 1, "", false, true, false, 200);
         assert!(
             !decision.should_fire,
             "empty activity_sig must not trigger sig_changed notification"
@@ -1069,6 +1162,104 @@ mod tests {
             !decision.sig_changed,
             "sig_changed must be false for empty sig"
         );
+    }
+
+    // -----------------------------------------------------------------------
+    // Typing-indicator re-arm tests (TYPING_REARM_SECS)
+    // -----------------------------------------------------------------------
+
+    /// After a typing-indicator zero, count returning once TYPING_REARM_SECS
+    /// have elapsed since the previous notification should re-fire.
+    #[test]
+    fn test_typing_indicator_rearm_fires_after_cooldown() {
+        // Simulate: notification fired at T=100, typing indicator at T=106,
+        // message arrives at T=108 (elapsed from fired_at = 8 ≥ TYPING_REARM_SECS=5).
+        let mut state = NotifState::Notified {
+            count: 1,
+            sig: String::new(),
+            fired_at_secs: 100,
+        };
+
+        // Typing indicator fires — count drops to 0, is_typing_indicator=true.
+        let zero = decide_notification(&mut state, 0, "", false, true, true, 106);
+        assert!(!zero.should_fire);
+        assert_eq!(zero.reason, "zero-pending-start");
+        // Confirm zero_from_typing was stored.
+        assert_eq!(
+            state,
+            NotifState::ZeroPending {
+                prev_count: 1,
+                prev_sig: String::new(),
+                prev_fired_at_secs: 100,
+                zero_since_secs: 106,
+                zero_from_typing: true,
+            }
+        );
+
+        // Message arrives — count returns, elapsed = 108-100 = 8 ≥ 5 → re-arm.
+        let rearm = decide_notification(&mut state, 1, "", false, true, false, 108);
+        assert!(rearm.should_fire, "typing rearm must fire after cooldown");
+        assert_eq!(rearm.reason, "typing-indicator-rearm");
+    }
+
+    /// Typing-indicator zero followed by a quick count return (elapsed <
+    /// TYPING_REARM_SECS) must NOT re-fire — rapid oscillation guard.
+    #[test]
+    fn test_typing_indicator_rearm_suppressed_too_soon() {
+        let mut state = NotifState::Notified {
+            count: 1,
+            sig: String::new(),
+            fired_at_secs: 100,
+        };
+
+        // Typing indicator at T=101 (elapsed so far: 1s).
+        let _ = decide_notification(&mut state, 0, "", false, true, true, 101);
+
+        // Count returns at T=103 — elapsed = 3 < TYPING_REARM_SECS=5 → no fire.
+        let d = decide_notification(&mut state, 1, "", false, true, false, 103);
+        assert!(
+            !d.should_fire,
+            "typing rearm must be suppressed before cooldown expires"
+        );
+        assert_eq!(d.reason, "zero-bounce-oscillation-suppressed");
+    }
+
+    /// Regular oscillation (non-typing zero) must NOT be affected by the
+    /// typing-indicator re-arm path even when enough time has elapsed.
+    #[test]
+    fn test_non_typing_zero_not_rearmed() {
+        let mut state = NotifState::Notified {
+            count: 1,
+            sig: String::new(),
+            fired_at_secs: 100,
+        };
+
+        // Regular zero (not typing indicator) at T=103.
+        let _ = decide_notification(&mut state, 0, "", false, true, false, 103);
+
+        // Count returns at T=110 — elapsed=10 ≥ TYPING_REARM_SECS, but
+        // zero_from_typing=false so typing_rearm must NOT trigger.
+        let d = decide_notification(&mut state, 1, "", false, true, false, 110);
+        assert!(
+            !d.should_fire,
+            "non-typing zero bounce must not re-arm even after cooldown"
+        );
+        assert_eq!(d.reason, "zero-bounce-oscillation-suppressed");
+    }
+
+    /// Verify TYPING_REARM_SECS constant is within a sensible range.
+    #[test]
+    fn test_typing_rearm_constant_is_reasonable() {
+        const _: () = {
+            assert!(
+                TYPING_REARM_SECS >= 3,
+                "rearm floor must exceed oscillation interval (~3s)"
+            );
+            assert!(
+                TYPING_REARM_SECS <= 15,
+                "rearm floor must be short enough to catch real replies"
+            );
+        };
     }
 
     #[test]
