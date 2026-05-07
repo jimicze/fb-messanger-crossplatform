@@ -2491,17 +2491,47 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                 .and_then(|s| s.split_once(')'))
                 .and_then(|(n, _)| n.parse::<u32>().ok())
                 .unwrap_or(0);
+
+            // Parse sender from "(N) SENDER | Messenger" format.
+            //   "(1) Jouda | Messenger"  → "Jouda"
+            //   "(1) Messenger"          → ""  (inbox / no open conversation)
+            //   "Jouda píše!" / typing   → ""  (count==0, skipped)
+            let sender: String = if count > 0 {
+                title
+                    .trim_start()
+                    .strip_prefix('(')
+                    .and_then(|s| s.split_once(')'))
+                    .and_then(|(_, rest)| {
+                        rest.trim()
+                            .split_once(" | Messenger")
+                            .map(|(name, _)| name.trim().to_owned())
+                    })
+                    .filter(|s| !s.is_empty())
+                    .unwrap_or_default()
+            } else {
+                String::new()
+            };
+
+            // Detect typing indicator: count==0 AND title is not the plain
+            // "Messenger" (all-read) AND has no "(N)" prefix.
+            // Examples: "Jouda píše!", "Alice is typing…"
+            let is_typing_indicator = count == 0
+                && title.trim() != "Messenger"
+                && !title.trim_start().starts_with('(');
+
             log::info!(
-                "[MessengerX][TitleChange] title={:?} parsed_count={}",
+                "[MessengerX][TitleChange] title={:?} parsed_count={} sender={:?} is_typing={}",
                 title,
-                count
+                count,
+                sender,
+                is_typing_indicator,
             );
             let app = webview_window.app_handle().clone();
             std::thread::spawn(move || {
-                if let Err(e) = crate::commands::update_unread_count(
+                if let Err(e) = crate::commands::update_unread_count_from_title(
                     count,
-                    String::new(), // sender: not available from title
-                    String::new(), // activity_sig: no DOM access from Rust
+                    sender,
+                    is_typing_indicator,
                     app,
                 ) {
                     log::warn!("[MessengerX][TitleChange] update_unread_count error: {e}");
