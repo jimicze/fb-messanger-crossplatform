@@ -76,7 +76,7 @@ const MAX_ZOOM: f64 = 1.2;
 // ---------------------------------------------------------------------------
 
 /// Last known unread count; `u32::MAX` forces an update on first call.
-static LAST_UNREAD_COUNT: AtomicU32 = AtomicU32::new(u32::MAX);
+pub(crate) static LAST_UNREAD_COUNT: AtomicU32 = AtomicU32::new(u32::MAX);
 
 /// Unix-second timestamp of the last "empty activity_sig with count > 0" warning.
 /// Used to throttle that diagnostic to at most once every
@@ -438,10 +438,20 @@ pub fn update_unread_count(
     // 2. Notification decision — evaluated independently of badge guard.
     // ------------------------------------------------------------------
     let settings = crate::services::auth::load_settings(&app).unwrap_or_default();
-    let is_focused = app
-        .get_webview_window("main")
+    let main_window = app.get_webview_window("main");
+    let raw_focused = main_window
+        .as_ref()
         .and_then(|w| w.is_focused().ok())
         .unwrap_or(false);
+    let raw_minimized = main_window.as_ref().and_then(|w| w.is_minimized().ok());
+    let raw_visible_api = main_window.as_ref().and_then(|w| w.is_visible().ok());
+    // Phase A: log the per-call focus probe with all three signals so we can
+    // diagnose whether `is_focused()` alone is the wrong gate (H2 Wayland).
+    log::debug!(
+        "[MessengerX][Notification][FocusProbe] focused={raw_focused} \
+         minimized={raw_minimized:?} visible_api={raw_visible_api:?}"
+    );
+    let is_focused = raw_focused;
     let now = now_secs();
     let (decision, state_after) = {
         let mut state = NOTIF_STATE
@@ -706,13 +716,26 @@ pub fn get_window_focused(app: AppHandle) -> bool {
         log::warn!("[MessengerX][Visibility] get_window_focused: is_minimized() failed");
         return false;
     };
+    // Phase A diagnostic: also probe is_visible() to detect Wayland occlusion
+    // mismatches (H2). On X11 / win / mac this should track is_minimized closely.
+    let visible_probe = window.is_visible().ok();
     let effective_visible = is_focused && !is_minimized;
+
+    #[cfg(target_os = "linux")]
+    {
+        let session_type = std::env::var("XDG_SESSION_TYPE").unwrap_or_else(|_| "<unset>".into());
+        log::info!(
+            "[MessengerX][Visibility][Linux] get_window_focused -> focused={is_focused} \
+             minimized={is_minimized} visible_api={visible_probe:?} \
+             effective={effective_visible} session_type={session_type:?}"
+        );
+    }
+    #[cfg(not(target_os = "linux"))]
     log::info!(
-        "[MessengerX][Visibility] get_window_focused -> focused={} minimized={} visible={}",
-        is_focused,
-        is_minimized,
-        effective_visible
+        "[MessengerX][Visibility] get_window_focused -> focused={is_focused} \
+         minimized={is_minimized} visible_api={visible_probe:?} effective={effective_visible}"
     );
+
     effective_visible
 }
 
@@ -826,20 +849,22 @@ mod tests {
         let empty_sig = "".to_string();
 
         // Same sig → no change.
-        assert!(!(!new_sig_same.is_empty() && new_sig_same != last_sig));
+        assert!(new_sig_same.is_empty() || new_sig_same == last_sig);
         // Changed seq → should trigger.
         assert!(!new_sig_changed.is_empty() && new_sig_changed != last_sig);
         // Changed snapshot (different convo) → should trigger.
         assert!(!new_sig_new_convo.is_empty() && new_sig_new_convo != last_sig);
         // Empty sig (count=0 path) → never triggers.
-        assert!(!(!empty_sig.is_empty() && empty_sig != last_sig));
+        assert!(empty_sig.is_empty() || empty_sig == last_sig);
     }
 
     #[test]
     fn test_zero_sustain_constant_exceeds_title_oscillation() {
         // Messenger oscillation observed around ~3 seconds; require longer than that.
-        assert!(ZERO_SUSTAIN_SECS > 3);
-        assert!(ZERO_SUSTAIN_SECS <= 30);
+        const _: () = {
+            assert!(ZERO_SUSTAIN_SECS > 3);
+            assert!(ZERO_SUSTAIN_SECS <= 30);
+        };
     }
 
     #[test]
@@ -999,14 +1024,16 @@ mod tests {
     /// Verify the empty-sig throttle constant is a reasonable positive interval.
     #[test]
     fn test_empty_sig_warn_throttle_constant_is_reasonable() {
-        assert!(
-            EMPTY_SIG_WARN_THROTTLE_SECS >= 10,
-            "throttle should be at least 10s to avoid log spam"
-        );
-        assert!(
-            EMPTY_SIG_WARN_THROTTLE_SECS <= 300,
-            "throttle should be at most 5 minutes so issues surface quickly"
-        );
+        const _: () = {
+            assert!(
+                EMPTY_SIG_WARN_THROTTLE_SECS >= 10,
+                "throttle should be at least 10s to avoid log spam"
+            );
+            assert!(
+                EMPTY_SIG_WARN_THROTTLE_SECS <= 300,
+                "throttle should be at most 5 minutes so issues surface quickly"
+            );
+        };
     }
 
     /// Verify the decide_notification logic still fires when activity_sig is empty

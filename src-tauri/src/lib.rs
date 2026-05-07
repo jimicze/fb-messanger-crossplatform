@@ -542,15 +542,42 @@ const UNREAD_OBSERVER_SCRIPT: &str = r#"
     // Uses expanded link selectors via getAllThreadLinks().
     // ---------------------------------------------------------------------------
     function getFirstUnreadSenderName() {
+        // Phase A1 telemetry: log full extraction trace per IPC call so we can
+        // diagnose macOS sender-name regression (H1). Each call summarises
+        // link count, candidates considered, and final result.
+        var diag = { totalLinks: 0, scanned: 0, unreadHits: 0, rejected: [], picked: '' };
         try {
             var links = getAllThreadLinks();
+            diag.totalLinks = links.length;
             for (var i = 0; i < Math.min(links.length, 10); i++) {
-                var sig = detectUnreadSignals(links[i]);
-                if (!sig.isUnread) continue;
-                var name = extractNameFromLink(links[i], sig);
-                if (name.length >= 1) return name;
+                diag.scanned++;
+                var link = links[i];
+                var sig = detectUnreadSignals(link);
+                if (!sig.isUnread) {
+                    if (diag.rejected.length < 5) {
+                        diag.rejected.push('i=' + i + ' notUnread aria=' + (sig.hasAria ? 'y' : 'n')
+                            + ' badge=' + (sig.hasBadge ? 'y' : 'n') + ' bold=' + (sig.hasBold ? 'y' : 'n')
+                            + ' dot=' + (sig.hasDot ? 'y' : 'n'));
+                    }
+                    continue;
+                }
+                diag.unreadHits++;
+                var name = extractNameFromLink(link, sig);
+                if (name.length >= 1) {
+                    diag.picked = name;
+                    jlog('[Sender] ' + JSON.stringify(diag) + ' result="' + name + '"');
+                    return name;
+                } else {
+                    if (diag.rejected.length < 5) {
+                        diag.rejected.push('i=' + i + ' unread but extractName returned ""'
+                            + ' aria=' + JSON.stringify((link.getAttribute('aria-label') || '').slice(0, 60)));
+                    }
+                }
             }
-        } catch(e) {}
+        } catch(e) {
+            jlog('[Sender] EXCEPTION: ' + (e && e.message ? e.message : String(e)));
+        }
+        jlog('[Sender] ' + JSON.stringify(diag) + ' result=""');
         return '';
     }
 
@@ -1629,6 +1656,292 @@ const WINDOW_OPEN_OVERRIDE_SCRIPT: &str = r#"
 })();
 "#;
 
+/// Phase A diagnostic script (v1.3.23+).
+///
+/// Read-only instrumentation only — does **NOT** modify any Messenger behavior.
+/// Logs are sent through `js_log` with the `[DiagJS]` prefix so they land in the
+/// Rust log file alongside everything else.
+///
+/// What it captures:
+/// 1. **A5 page-loaded ping** — fires once `DOMContentLoaded` plus once on
+///    `load`, including `performance.now()` and a tiny set of WebView/UA
+///    fingerprints. Used to confirm Win11 first-paint timing (H3).
+/// 2. **A6 WebSocket proxy** — wraps `WebSocket.prototype.send` and the
+///    `message` event listener registration, plus subscribes to `addEventListener`
+///    so we can log incoming frames (count + size only — never payload bodies)
+///    grouped per-URL. This is the read-only foundation for Phase C, and it
+///    also tells us whether MQTT-over-WS is even reaching the page.
+/// 3. **A6 fetch / XHR proxy** — wraps `fetch()` and `XMLHttpRequest.open()`
+///    and logs only requests whose URL matches Messenger graph/messaging
+///    endpoints. Method + URL + status only; no payload.
+/// 4. **Focus / visibility heartbeat** — once per 30 s logs
+///    `document.hasFocus()`, `document.visibilityState`, `document.hidden`.
+///    Used to corroborate Linux Wayland focus-gating hypothesis (H2).
+///
+/// All loggers are throttled / capped so the log file does not explode.
+const DIAGNOSTIC_TELEMETRY_SCRIPT: &str = concat!(
+    r#"
+(function() {
+    var APP_VERSION = ""#,
+    env!("CARGO_PKG_VERSION"),
+    r#"";
+    function dlog(msg) {
+        try {
+            window.__TAURI__.core.invoke('js_log', { message: '[DiagJS] ' + msg });
+        } catch(_) {}
+    }
+
+    // -----------------------------------------------------------------------
+    // 0. Early IPC availability probe (Fix 4 / Phase B diagnostics)
+    //
+    //    This MUST run before any other code so we know whether subsequent
+    //    dlog() calls will actually reach the Rust log file.
+    //
+    //    On Linux VMware / AppImage with EGL/DRI3 degradation, WebKitGTK can
+    //    fail to inject window.__TAURI__ into the page context even though
+    //    initialization_scripts normally deliver it unconditionally.  When that
+    //    happens every dlog() is silently swallowed — resulting in zero JS log
+    //    lines in messengerx.log (exact symptom observed in Phase A Linux logs).
+    //
+    //    We emit a console.log in addition to dlog() so that the probe result
+    //    is visible in the WebKit inspector even if IPC is broken.
+    // -----------------------------------------------------------------------
+    var _ipcAvailable = false;
+    var _ipcDiag = 'unknown';
+    try {
+        var _tauriType  = typeof window.__TAURI__;
+        var _coreType   = (_tauriType !== 'undefined') ? typeof window.__TAURI__.core   : 'n/a';
+        var _invokeType = (_coreType  !== 'n/a')       ? typeof window.__TAURI__.core.invoke : 'n/a';
+        _ipcAvailable = (_invokeType === 'function');
+        _ipcDiag = 'tauriType=' + _tauriType
+                 + ' coreType='   + _coreType
+                 + ' invokeType=' + _invokeType;
+    } catch(e) {
+        _ipcDiag = 'probe-threw: ' + String(e);
+    }
+    // Always emit to console (visible in WebKit inspector regardless of IPC).
+    try {
+        console.log('[MessengerX][DiagJS][IPCProbe] ipcAvailable=' + _ipcAvailable + ' ' + _ipcDiag);
+    } catch(_) {}
+    // Also attempt dlog — will succeed only if IPC works.
+    dlog('[IPCProbe] ipcAvailable=' + _ipcAvailable + ' ' + _ipcDiag);
+
+    // -----------------------------------------------------------------------
+    // 1. Page-loaded ping (A5)
+    // -----------------------------------------------------------------------
+    var pingedDomReady = false;
+    var pingedLoad = false;
+    function pingPageLoaded(stage) {
+        try {
+            var nowMs = (typeof performance !== 'undefined' && performance.now)
+                ? Math.round(performance.now()) : -1;
+            var info = {
+                v: APP_VERSION,
+                stage: stage,
+                t: nowMs,
+                url: (location && location.href ? location.href.slice(0, 120) : ''),
+                ua: (navigator && navigator.userAgent ? navigator.userAgent.slice(0, 80) : ''),
+                visible: (document && document.visibilityState) ? document.visibilityState : '?',
+                focus: (document && typeof document.hasFocus === 'function') ? !!document.hasFocus() : null
+            };
+            dlog('[PageLoaded] ' + JSON.stringify(info));
+        } catch(_) {}
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function() {
+            if (pingedDomReady) return;
+            pingedDomReady = true;
+            pingPageLoaded('domcontentloaded');
+        });
+    } else {
+        pingedDomReady = true;
+        pingPageLoaded('already-interactive');
+    }
+    window.addEventListener('load', function() {
+        if (pingedLoad) return;
+        pingedLoad = true;
+        pingPageLoaded('load');
+    });
+
+    // -----------------------------------------------------------------------
+    // 4. Focus / visibility heartbeat — done early so we have data even if
+    //    other hooks fail.
+    // -----------------------------------------------------------------------
+    setInterval(function() {
+        try {
+            var info = {
+                hasFocus: (typeof document.hasFocus === 'function') ? !!document.hasFocus() : null,
+                visibility: document.visibilityState || '?',
+                hidden: !!document.hidden,
+                url: location.pathname + location.search.slice(0, 40)
+            };
+            dlog('[FocusHB] ' + JSON.stringify(info));
+        } catch(_) {}
+    }, 30000);
+
+    // -----------------------------------------------------------------------
+    // 2. WebSocket proxy (read-only) — counts frames per URL, throttled flush.
+    // -----------------------------------------------------------------------
+    try {
+        var wsStats = Object.create(null);
+        var wsFlushPending = false;
+        function wsFlush() {
+            wsFlushPending = false;
+            try {
+                var keys = Object.keys(wsStats);
+                if (keys.length === 0) return;
+                var summary = [];
+                for (var i = 0; i < keys.length && i < 6; i++) {
+                    var k = keys[i];
+                    var s = wsStats[k];
+                    summary.push({ url: k.slice(0, 60), out: s.out, in: s.in, bytes: s.bytes });
+                }
+                dlog('[WS] ' + JSON.stringify(summary));
+                wsStats = Object.create(null);
+            } catch(_) {}
+        }
+        function wsScheduleFlush() {
+            if (wsFlushPending) return;
+            wsFlushPending = true;
+            setTimeout(wsFlush, 5000);
+        }
+        function wsBumpStats(url, dir, bytes) {
+            try {
+                var k = (url || '?').replace(/^wss?:\/\//, '').slice(0, 80);
+                if (!wsStats[k]) wsStats[k] = { out: 0, in: 0, bytes: 0 };
+                if (dir === 'in') wsStats[k].in++; else wsStats[k].out++;
+                wsStats[k].bytes += (bytes | 0);
+                wsScheduleFlush();
+            } catch(_) {}
+        }
+        var NativeWS = window.WebSocket;
+        if (NativeWS && NativeWS.prototype) {
+            var origSend = NativeWS.prototype.send;
+            NativeWS.prototype.send = function(data) {
+                try {
+                    var n = 0;
+                    if (typeof data === 'string') n = data.length;
+                    else if (data && data.byteLength != null) n = data.byteLength;
+                    wsBumpStats(this.url, 'out', n);
+                } catch(_) {}
+                return origSend.apply(this, arguments);
+            };
+            var origAddEvt = NativeWS.prototype.addEventListener;
+            NativeWS.prototype.addEventListener = function(type, listener, options) {
+                if (type === 'message' && typeof listener === 'function') {
+                    var url = this.url;
+                    var wrapped = function(ev) {
+                        try {
+                            var n = 0;
+                            if (ev && ev.data) {
+                                if (typeof ev.data === 'string') n = ev.data.length;
+                                else if (ev.data.byteLength != null) n = ev.data.byteLength;
+                                else if (ev.data.size != null) n = ev.data.size;
+                            }
+                            wsBumpStats(url, 'in', n);
+                        } catch(_) {}
+                        return listener.apply(this, arguments);
+                    };
+                    return origAddEvt.call(this, type, wrapped, options);
+                }
+                return origAddEvt.apply(this, arguments);
+            };
+            // Also instrument onmessage setter (Messenger uses both APIs).
+            try {
+                var desc = Object.getOwnPropertyDescriptor(NativeWS.prototype, 'onmessage');
+                if (desc && desc.set) {
+                    Object.defineProperty(NativeWS.prototype, 'onmessage', {
+                        configurable: true,
+                        enumerable: desc.enumerable,
+                        get: desc.get,
+                        set: function(fn) {
+                            var url = this.url;
+                            if (typeof fn === 'function') {
+                                var wrapped = function(ev) {
+                                    try {
+                                        var n = 0;
+                                        if (ev && ev.data) {
+                                            if (typeof ev.data === 'string') n = ev.data.length;
+                                            else if (ev.data.byteLength != null) n = ev.data.byteLength;
+                                            else if (ev.data.size != null) n = ev.data.size;
+                                        }
+                                        wsBumpStats(url, 'in', n);
+                                    } catch(_) {}
+                                    return fn.apply(this, arguments);
+                                };
+                                return desc.set.call(this, wrapped);
+                            }
+                            return desc.set.call(this, fn);
+                        }
+                    });
+                }
+            } catch(_) {}
+            dlog('[WS] proxy installed');
+        }
+    } catch(e) {
+        dlog('[WS] install FAILED: ' + (e && e.message ? e.message : String(e)));
+    }
+
+    // -----------------------------------------------------------------------
+    // 3. fetch / XHR proxy (read-only) — only logs Messenger messaging URLs.
+    // -----------------------------------------------------------------------
+    try {
+        var URL_RE = /(\/messaging\/|\/api\/graphql\/|\/sync\/|\/lsr\b|graphql)/i;
+        var origFetch = window.fetch;
+        if (typeof origFetch === 'function') {
+            window.fetch = function(input, init) {
+                var url = '';
+                try {
+                    url = (typeof input === 'string') ? input : (input && input.url) || '';
+                } catch(_) {}
+                var method = (init && init.method) || 'GET';
+                var matched = URL_RE.test(url);
+                var p = origFetch.apply(this, arguments);
+                if (matched && p && typeof p.then === 'function') {
+                    p.then(function(resp) {
+                        try {
+                            dlog('[Fetch] ' + method + ' ' + (url.length > 80 ? url.slice(0, 80) + '..' : url)
+                                + ' -> ' + (resp ? resp.status : '?'));
+                        } catch(_) {}
+                    }, function(err) {
+                        try {
+                            dlog('[Fetch] ' + method + ' ' + url.slice(0, 80) + ' ERR ' + (err && err.message ? err.message : String(err)));
+                        } catch(_) {}
+                    });
+                }
+                return p;
+            };
+        }
+        var XHRProto = window.XMLHttpRequest && window.XMLHttpRequest.prototype;
+        if (XHRProto) {
+            var origOpen = XHRProto.open;
+            XHRProto.open = function(method, url) {
+                try {
+                    if (URL_RE.test(url || '')) {
+                        this.__mxDiagUrl = url;
+                        this.__mxDiagMethod = method;
+                        var self = this;
+                        this.addEventListener('loadend', function() {
+                            try {
+                                dlog('[XHR] ' + self.__mxDiagMethod + ' '
+                                    + String(self.__mxDiagUrl).slice(0, 80) + ' -> ' + self.status);
+                            } catch(_) {}
+                        });
+                    }
+                } catch(_) {}
+                return origOpen.apply(this, arguments);
+            };
+        }
+        dlog('[HTTP] proxies installed');
+    } catch(e) {
+        dlog('[HTTP] install FAILED: ' + (e && e.message ? e.message : String(e)));
+    }
+
+    dlog('[Init] diagnostic telemetry v=' + APP_VERSION + ' ready');
+})();
+"#
+);
+
 /// JavaScript snippet that triggers snapshot capture and forwards the HTML to
 /// Rust via `invoke('save_snapshot', …)`.  Called from the Rust snapshot timer.
 ///
@@ -1740,14 +2053,37 @@ const VISIBILITY_OVERRIDE_SCRIPT: &str = r#"(function() {
     }
 
     window.__messengerx_set_visible = setVisible;
-    window.__TAURI__.core.invoke('get_window_focused')
-        .then(function(focused) {
-            jlog('initial get_window_focused=' + String(focused));
-            setVisible(focused, 'ipc-resync');
-        })
-        .catch(function(e) {
-            jlog('get_window_focused failed: ' + e);
-        });
+
+    // Fix 3 (Linux IPC): wrap the top-level window.__TAURI__ access in try/catch.
+    //
+    // On VMware / AppImage / EGL-degraded WebKitGTK (Linux), window.__TAURI__ can
+    // be undefined even though initialization_scripts normally inject the Tauri IPC
+    // binding unconditionally.  Without this guard the bare property access at the
+    // top level of the IIFE throws a TypeError that silently aborts the script —
+    // preventing the "visibility override installed" log line and potentially leaving
+    // Messenger with a permanently-wrong visibilityState after a re-navigation.
+    //
+    // The .catch() already handles async failures; this try/catch handles the
+    // synchronous case where window.__TAURI__ itself (or .core) is undefined.
+    try {
+        window.__TAURI__.core.invoke('get_window_focused')
+            .then(function(focused) {
+                jlog('initial get_window_focused=' + String(focused));
+                setVisible(focused, 'ipc-resync');
+            })
+            .catch(function(e) {
+                jlog('get_window_focused IPC rejected: ' + String(e));
+            });
+    } catch(e) {
+        // IPC not yet available (window.__TAURI__ undefined or .core missing).
+        // The flag stays at its conservative default (_hidden=false → visible),
+        // which is the safer fallback: Messenger will attempt notifications rather
+        // than silently suppressing them.  The Rust-side WindowEvent::Focused handler
+        // and the is_minimized() poll thread will update the flag via
+        // window.__messengerx_set_visible() once IPC becomes available.
+        jlog('get_window_focused sync error (IPC unavailable at init): ' + String(e));
+    }
+
     jlog('visibility override installed');
 })();"#;
 
@@ -1827,6 +2163,101 @@ pub fn dispatch_notification_from_bundle(
 // Application entry point
 // ---------------------------------------------------------------------------
 
+/// Phase A diagnostic — log the runtime platform environment once at startup.
+///
+/// Per-platform fields:
+///  - **Linux**: `XDG_SESSION_TYPE`, `WAYLAND_DISPLAY`, `XDG_CURRENT_DESKTOP`,
+///    `DESKTOP_SESSION`, `DBUS_SESSION_BUS_ADDRESS`, presence of `notify-send`
+///    on `$PATH`. Used to validate H2 (Wayland focus gating) and the
+///    notify-send transport path.
+///  - **Windows**: OS version via `cmd /c ver` and WebView2 runtime version
+///    via the EdgeUpdate registry key. Used for H3/H4.
+///  - **macOS**: kernel version via `uname -r`.
+fn log_platform_environment() {
+    let pkg_version = env!("CARGO_PKG_VERSION");
+    log::info!("[MessengerX][Env] starting v{pkg_version}");
+
+    #[cfg(target_os = "linux")]
+    {
+        let session_type = std::env::var("XDG_SESSION_TYPE").unwrap_or_else(|_| "<unset>".into());
+        let wayland_display = std::env::var("WAYLAND_DISPLAY").unwrap_or_else(|_| "<unset>".into());
+        let current_desktop =
+            std::env::var("XDG_CURRENT_DESKTOP").unwrap_or_else(|_| "<unset>".into());
+        let desktop_session = std::env::var("DESKTOP_SESSION").unwrap_or_else(|_| "<unset>".into());
+        let dbus_addr = std::env::var("DBUS_SESSION_BUS_ADDRESS")
+            .map(|v| {
+                let trimmed: String = v.chars().take(80).collect();
+                if v.len() > 80 {
+                    format!("{trimmed}…(truncated)")
+                } else {
+                    trimmed
+                }
+            })
+            .unwrap_or_else(|_| "<unset>".into());
+        let appimage = std::env::var("APPIMAGE").ok();
+        log::info!(
+            "[MessengerX][Env][Linux] session_type={session_type:?} wayland_display={wayland_display:?} \
+             current_desktop={current_desktop:?} desktop_session={desktop_session:?} \
+             dbus_addr={dbus_addr:?} appimage={appimage:?}"
+        );
+
+        let notify_send_check = std::process::Command::new("sh")
+            .arg("-c")
+            .arg("command -v notify-send 2>/dev/null && notify-send --version 2>/dev/null | head -n1")
+            .output();
+        match notify_send_check {
+            Ok(out) => {
+                let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
+                log::info!(
+                    "[MessengerX][Env][Linux] notify-send probe: status={:?} stdout={stdout:?} stderr={stderr:?}",
+                    out.status.code()
+                );
+            }
+            Err(e) => {
+                log::warn!("[MessengerX][Env][Linux] notify-send probe spawn failed: {e}");
+            }
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let os_info = std::process::Command::new("cmd")
+            .args(["/c", "ver"])
+            .output();
+        match os_info {
+            Ok(out) => {
+                let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                log::info!("[MessengerX][Env][Windows] os_version={stdout:?}");
+            }
+            Err(e) => {
+                log::warn!("[MessengerX][Env][Windows] `cmd /c ver` failed: {e}");
+            }
+        }
+        let webview2 = std::process::Command::new("reg")
+            .args([
+                "query",
+                "HKLM\\SOFTWARE\\WOW6432Node\\Microsoft\\EdgeUpdate\\Clients\\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}",
+                "/v",
+                "pv",
+            ])
+            .output();
+        if let Ok(out) = webview2 {
+            let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
+            log::info!("[MessengerX][Env][Windows] webview2_runtime_query={stdout:?}");
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let uname = std::process::Command::new("uname").arg("-r").output();
+        if let Ok(out) = uname {
+            let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
+            log::info!("[MessengerX][Env][macOS] kernel={stdout:?}");
+        }
+    }
+}
+
 /// Run the Tauri application.
 ///
 /// Registers all plugins, builds the main webview window with JS injection
@@ -1883,6 +2314,12 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app_handle, event| {
+            // Phase A diagnostic: log RunEvent::Ready timing for first-paint
+            // correlation (H3 Win11 white screen).
+            if let tauri::RunEvent::Ready = event {
+                log::info!("[MessengerX][Boot] RunEvent::Ready fired");
+            }
+
             // Windows 11 (especially on some ARM devices) can ignore a focus
             // request if it happens too early during setup. Apply the
             // startup foreground workaround after the runtime reports Ready,
@@ -1923,6 +2360,15 @@ pub fn run() {
 
 /// Performs one-time application setup inside the Tauri `setup` hook.
 fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+    // Phase A diagnostic: mark setup_app entry so we can correlate first-paint
+    // delay with Rust-side cost (H3 Win11 white screen).
+    let setup_started = std::time::Instant::now();
+    log::info!("[MessengerX][Boot] setup_app start");
+    // Phase A diagnostic: log_platform_environment must run AFTER the log plugin
+    // is initialized (inside setup_app), not from run() where the logger is not yet
+    // active. This was the bug that caused all [Env] lines to be silently dropped.
+    log_platform_environment();
+
     if let Err(e) = services::notification::initialize() {
         log::warn!("[MessengerX] Failed to initialize native notifications: {e}");
     }
@@ -1996,6 +2442,7 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         // Inject all JS at document-start.
         .initialization_script(NOTIFICATION_OVERRIDE_SCRIPT)
         .initialization_script(UNREAD_OBSERVER_SCRIPT)
+        .initialization_script(DIAGNOSTIC_TELEMETRY_SCRIPT)
         .initialization_script(OFFLINE_DIALOG_HIDER_SCRIPT)
         .initialization_script(&offline_banner_script)
         .initialization_script(&zoom_init_script)
@@ -2091,6 +2538,11 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         })
         .build()?;
 
+    log::info!(
+        "[MessengerX][Boot] webview window built (online={is_online}, t={}ms)",
+        setup_started.elapsed().as_millis()
+    );
+
     // ------------------------------------------------------------------
     // 4b. Apply persisted zoom level via the native WebView API.
     //     This scales the entire viewport (not just body content), so the
@@ -2135,20 +2587,46 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
     // ------------------------------------------------------------------
     // 4c-2. Cross-platform: reset notification guard when the window gains
-    //       focus so that the NEXT new message always triggers a notification.
+    //       focus AND the unread count is 0 (messages already read).
     //
-    //       Without this, once a notification fires and the user opens the app
-    //       without a sustained count=0 period, the dedupe state could remain
-    //       in Notified/ZeroPending and suppress future messages.
+    //       Guard: we only reset when count == 0.  If count > 0 the user
+    //       has NOT yet read the pending messages; resetting to Idle here
+    //       would cause a duplicate notification on the next polling tick.
+    //
+    //       This also filters spurious WebView2 focus events on Windows
+    //       (H2-variant), where the runtime fires Focused(true) ~8x per
+    //       99 s without any user interaction.  Those events arrive while
+    //       count is still > 0, so the count guard silently skips them
+    //       and prevents erroneous notification re-fires.
+    //
+    //       When count == 0 and the window is truly focused (user has seen
+    //       the messages), resetting to Idle is correct: it ensures the
+    //       NEXT new message always triggers a notification immediately
+    //       rather than waiting for the 7-second ZeroPending→Idle timer.
     // ------------------------------------------------------------------
     {
         webview.on_window_event(move |event| {
             if let tauri::WindowEvent::Focused(true) = event {
+                use std::sync::atomic::Ordering;
+                let current_count = crate::commands::LAST_UNREAD_COUNT.load(Ordering::SeqCst);
+                if current_count > 0 && current_count != u32::MAX {
+                    // Messages still unread — do NOT reset; a real focus would be
+                    // handled via the ZeroPending→Idle path once count drops to 0.
+                    log::debug!(
+                        "[MessengerX][Notification] Focused(true) with count={} — skip reset (messages unread or spurious event)",
+                        current_count
+                    );
+                    return;
+                }
                 if let Ok(mut state) = crate::commands::NOTIF_STATE.lock() {
+                    if *state == crate::commands::NotifState::Idle {
+                        // Already idle — no-op, avoid log spam from repeated events.
+                        return;
+                    }
                     *state = crate::commands::NotifState::Idle;
                 }
                 log::info!(
-                    "[MessengerX][Notification] Window gained focus — notification state reset to Idle"
+                    "[MessengerX][Notification] Window gained focus (count=0) — notification state reset to Idle"
                 );
             }
         });
@@ -3475,6 +3953,10 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
+    log::info!(
+        "[MessengerX][Boot] setup_app complete (t={}ms)",
+        setup_started.elapsed().as_millis()
+    );
     Ok(())
 }
 
@@ -3536,10 +4018,7 @@ mod tests {
         impl EnvRestoreGuard {
             fn capture(keys: &[&'static str]) -> Self {
                 Self {
-                    original: keys
-                        .iter()
-                        .map(|key| (*key, env::var(key).ok()))
-                        .collect(),
+                    original: keys.iter().map(|key| (*key, env::var(key).ok())).collect(),
                 }
             }
         }
@@ -3592,8 +4071,8 @@ mod tests {
             configure_linux_runtime_env();
 
             for (key, expected_value) in LINUX_APPIMAGE_ENV_OVERRIDES.iter() {
-                let actual_value =
-                    env::var(key).unwrap_or_else(|_| panic!("expected {key} to be set in AppImage"));
+                let actual_value = env::var(key)
+                    .unwrap_or_else(|_| panic!("expected {key} to be set in AppImage"));
 
                 if *key == preserved_key {
                     assert_eq!(
