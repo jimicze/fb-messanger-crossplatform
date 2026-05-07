@@ -2465,6 +2465,49 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
          AppleWebKit/537.36 (KHTML, like Gecko) \
          Chrome/120.0.0.0 Safari/537.36",
         )
+        // ------------------------------------------------------------------
+        // Phase G: Rust-side title-change unread-count detection.
+        //
+        // On Windows (WebView2) and Linux (WebKitGTK), Tauri v2 blocks
+        // invoke() from remote origins (https://www.messenger.com) at the
+        // WebView layer regardless of the capabilities `"remote"` block —
+        // that block is designed for iOS/Android, not desktop WebViews.
+        //
+        // This handler fires whenever document.title changes (via Wry's
+        // cross-platform title-changed hook) — no IPC, no origin checks.
+        // Messenger sets the title to "(N) Messenger" for N unread messages
+        // and back to "Messenger" when all are read.  Parsing that title
+        // gives us the unread count without JS→Rust IPC at all.
+        //
+        // On macOS (where invoke() already works) this also fires but
+        // NOTIF_STATE deduplication suppresses double-notifications when
+        // the same count is reported by both paths.
+        // ------------------------------------------------------------------
+        .on_document_title_changed(move |webview_window, title| {
+            // Parse "(N)" prefix — same logic as JS getUnreadCountFromTitle().
+            let count: u32 = title
+                .trim_start()
+                .strip_prefix('(')
+                .and_then(|s| s.split_once(')'))
+                .and_then(|(n, _)| n.parse::<u32>().ok())
+                .unwrap_or(0);
+            log::info!(
+                "[MessengerX][TitleChange] title={:?} parsed_count={}",
+                title,
+                count
+            );
+            let app = webview_window.app_handle().clone();
+            std::thread::spawn(move || {
+                if let Err(e) = crate::commands::update_unread_count(
+                    count,
+                    String::new(), // sender: not available from title
+                    String::new(), // activity_sig: no DOM access from Rust
+                    app,
+                ) {
+                    log::warn!("[MessengerX][TitleChange] update_unread_count error: {e}");
+                }
+            });
+        })
         // Navigation policy: allow Messenger / Facebook CDN domains;
         // open everything else in the system browser.
         .on_navigation(move |url| {
